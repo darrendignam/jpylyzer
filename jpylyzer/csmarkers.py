@@ -1164,9 +1164,11 @@ class CSMarkerValidator(Validator):
         for i in range(nopprfs):
             pprf = bc.bytesToUShortInt(self.boxContents[offset:offset + 2])
             PRFnum += pprf * 2 ** (16 * i)
-            if i == nopprfs:
-                # last pprf shall not be zero
-                self.testFor("pprfIsValid", pprf != 0)
+            offset += 2
+
+        if nopprfs > 0:
+            # last pprf shall not be zero
+            self.testFor("pprfIsValid", pprf != 0)
 
         self.testFor("PRFnumIsValid", PRFnum > 4095)
         self.addCharacteristic("PRFnum", PRFnum)
@@ -1180,7 +1182,7 @@ class CSMarkerValidator(Validator):
 
         # lcpf  must be within range 4-65534
         if self.format in ['jph', 'jhc']:
-            self.testFor("lcpIsValid", 4 <= lcpf <= 65534)
+            self.testFor("lcpfIsValid", 4 <= lcpf <= 65534)
 
         # Number of pcpf entries
         nopcpfs = int((lcpf - 2) / 2)
@@ -1192,10 +1194,11 @@ class CSMarkerValidator(Validator):
         for i in range(nopcpfs):
             pcpf = bc.bytesToUShortInt(self.boxContents[offset:offset + 2])
             CPFnum += pcpf * 2 ** (16 * i)
-            if i == nopcpfs:
-                # last pcpf shall not be zero
-                if self.format in ['jph', 'jhc']:
-                    self.testFor("pcpfIsValid", pcpf != 0)
+            offset += 2
+
+        if nopcpfs > 0 and self.format in ['jph', 'jhc']:
+            # last pcpf shall not be zero
+            self.testFor("pcpfIsValid", pcpf != 0)
 
         self.addCharacteristic("CPFnum", CPFnum)
 
