@@ -4,6 +4,7 @@ Validation of all defined boxes for JP2 and JPH
 """
 
 from __future__ import division
+import re
 import uuid
 import math
 from . import etpatch as ET
@@ -12,6 +13,11 @@ from . import shared
 from .validator import Validator
 from .codestream import CSValidator
 from .icc import IccValidator
+
+# Namespace names in the report must be URI references (Namespaces in XML), or
+# parsers such as libxml2 reject the whole report: characters allowed by
+# RFC 3986, with '%' only as part of a percent-encoded octet
+NAMESPACE_NAME = re.compile(r"(?:[A-Za-z0-9\-._~:/?#@!$&'()*+,;=]|%[0-9A-Fa-f]{2})+\Z")
 
 
 class BoxValidator(Validator):
@@ -856,6 +862,17 @@ class BoxValidator(Validator):
         self.characteristics.tag = self.boxType
         self.warnings.tag = self.boxType
 
+    def _appendEmbeddedXml(self, element):
+        """Add XML parsed from the file to the characteristics tree, unless it
+        uses a namespace name that is not a URI reference."""
+        for node in element.iter():
+            for name in [node.tag, *node.attrib]:
+                if name.startswith("{") and not NAMESPACE_NAME.match(name[1:name.index("}")]):
+                    self.addWarning("embedded XML not reported: namespace name '" +
+                                    name[1:name.index("}")] + "' is not a valid URI")
+                    return
+        self.characteristics.append(element)
+
     def validate_xmlBox(self):
         """XML Box (ISO/IEC 15444-1 Section I.7.1)."""
         data = self.boxContents
@@ -867,7 +884,7 @@ class BoxValidator(Validator):
             dataAsElement = ET.fromstring(data)
 
             # Add data to characteristics tree
-            self.characteristics.append(dataAsElement)
+            self._appendEmbeddedXml(dataAsElement)
 
             # If no exception was raised data contains well-formed XML
             containsWellformedXML = True
@@ -880,7 +897,7 @@ class BoxValidator(Validator):
                 try:
                     data = bc.removeNullTerminator(data)
                     dataAsElement = ET.fromstring(data)
-                    self.characteristics.append(dataAsElement)
+                    self._appendEmbeddedXml(dataAsElement)
                 except Exception:
                     pass
 
@@ -921,7 +938,7 @@ class BoxValidator(Validator):
                 dataAsElement = ET.fromstring(data)
 
                 # Add data to characteristics tree
-                self.characteristics.append(dataAsElement)
+                self._appendEmbeddedXml(dataAsElement)
 
                 # If no exception was raised data contains well-formed XML
                 containsWellformedXML = True
@@ -935,7 +952,7 @@ class BoxValidator(Validator):
                     try:
                         data = bc.removeNullTerminator(data)
                         dataAsElement = ET.fromstring(data)
-                        self.characteristics.append(dataAsElement)
+                        self._appendEmbeddedXml(dataAsElement)
                     except Exception:
                         pass
 
