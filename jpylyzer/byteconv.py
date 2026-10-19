@@ -99,25 +99,9 @@ def s15Fixed16NumberToFloat(bytestring):
     return result
 
 
-def isctrl(c):
-    """Return True if byte corresponds to device control character.
-
-    (See also: http://www.w3schools.com/tags/ref_ascii.asp)
-    """
-    return ord(c) < 32 or ord(c) == 127
-
-
 def bytesToHex(bytestring):
     """Return hexadecimal ascii representation of bytestring."""
     return binascii.hexlify(bytestring)
-
-
-def containsControlCharacters(bytestring):
-    """Return True if bytestring object contains control characters."""
-    for i in range(len(bytestring)):
-        if isctrl(bytestring[i:i + 1]):
-            return True
-    return False
 
 
 def removeControlCharacters(string):

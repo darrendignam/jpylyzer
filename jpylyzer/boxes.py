@@ -925,7 +925,7 @@ class BoxValidator(Validator):
 
                 # If no exception was raised data contains well-formed XML
                 containsWellformedXML = True
-            except BaseException:
+            except Exception:
                 # If parse raised error this is not well-formed XML
                 containsWellformedXML = False
 
@@ -936,7 +936,7 @@ class BoxValidator(Validator):
                         data = bc.removeNullTerminator(data)
                         dataAsElement = ET.fromstring(data)
                         self.characteristics.append(dataAsElement)
-                    except BaseException:
+                    except Exception:
                         pass
 
             self.testFor("containsWellformedXML", containsWellformedXML)

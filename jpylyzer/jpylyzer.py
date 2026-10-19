@@ -497,17 +497,6 @@ def checkOneFile(path, validationFormat=config.VALIDATION_FORMAT,
     return root
 
 
-def checkNullArgs(args):
-    """Check if the passed args list.
-
-    Exits program if invalid or no input argument is supplied.
-    """
-    if not args:
-        print('')
-        PARSER.print_help()
-        sys.exit(config.ERR_CODE_NO_IMAGES)
-
-
 def checkNoInput(files):
     """Check passed input files list.
 
@@ -516,13 +505,6 @@ def checkNoInput(files):
     if not files:
         shared.printWarning("no images to check!")
         sys.exit(config.ERR_CODE_NO_IMAGES)
-
-
-def printHelpAndExit():
-    """Print help message and exit."""
-    print('')
-    PARSER.print_help()
-    sys.exit()
 
 
 def escapeXmlInvalidCharacters(ustring):
@@ -813,12 +795,8 @@ def main():
     # Get input from command line
     args = parseCommandLine()
 
-    # Input images
+    # Input images (argparse requires at least one)
     jp2In = args.jp2In
-
-    # Print help message and exit if jp2In is empty
-    if not jp2In:
-        printHelpAndExit()
 
     # Makes user-specified flags available to any module that imports 'config.py'
     # (here: 'boxvalidator.py')
@@ -830,10 +808,6 @@ def main():
     config.VALIDATION_FORMAT = args.fmt.lower()
     config.MIX_FLAG = args.mixFlag
 
-    # Exit in case of unsupported Python version
-    if config.PYTHON_VERSION.startswith("2"):
-        msg = "Jpylyzer needs Python 3.x (Python 2.7 is no longer supported)"
-        shared.errorExit(msg)
     # Exit if validation format is unknown
     if config.VALIDATION_FORMAT not in ['jp2', 'jph', 'j2c', 'jhc']:
         msg = "'" + config.VALIDATION_FORMAT + "'  is not a supported value for --format"
