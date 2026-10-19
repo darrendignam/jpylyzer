@@ -1324,7 +1324,8 @@ class CSMarkerValidator(Validator):
     def validate_plm(self):
         """Packet length, main header (PLM) marker segment (ISO/IEC 15444-1 Section A.7.2).
 
-        Currently performs no validation, just adds details to properties XML.
+        The segment holds one Nplm, Iplm group per tile-part; each group is
+        reported as an nplm, iplm pair.
         """
         # Length of PLM marker
         lplm = bc.bytesToUShortInt(self.boxContents[0:2])
@@ -1334,14 +1335,21 @@ class CSMarkerValidator(Validator):
         zplm = bc.bytesToUnsignedChar(self.boxContents[2:3])
         self.addCharacteristic("zplm", zplm)
 
-        # Number of bytes of Iplm information for the ith tile-part
-        nplm = bc.bytesToUnsignedChar(self.boxContents[3:4])
-        self.addCharacteristic("nplm", nplm)
+        end = min(lplm, len(self.boxContents))
+        offset = 3
+        while offset < end:
+            # Number of bytes of Iplm information for the ith tile-part
+            nplm = bc.bytesToUnsignedChar(self.boxContents[offset:offset + 1])
+            self.addCharacteristic("nplm", nplm)
+            groupEnd = offset + 1 + nplm
+            self.testFor("nplmIsValid", groupEnd <= end)
 
-        # Comma separated list of packet lengths
-        iplm, iplmIsValid = self._parse_ipl(lplm, 4)
-        self.addCharacteristic("iplm", iplm)
-        self.testFor("iplmIsValid", iplmIsValid)
+            # Comma separated list of packet lengths
+            iplm, iplmIsValid = self._parse_ipl(groupEnd, offset + 1)
+            self.addCharacteristic("iplm", iplm)
+            self.testFor("iplmIsValid", iplmIsValid)
+
+            offset = groupEnd
 
     def validate_plt(self):
         """Packet length, tile-part header (PLT) marker segment (ISO/IEC 15444-1 Section A.7.3).

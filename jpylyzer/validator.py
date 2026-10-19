@@ -229,10 +229,12 @@ class Validator:
         FE2 = 000111111100010
         See table A.36 for more details.
 
-        - lpl: lplt/lplm parameter.
-        - offset: the offset (from marker code) to iplt/iplm parameter.
-            For iplt this will be 3 (sizeof(lplt) + sizeof(zplt)),
-            for iplm this will be 4 sizeof(lplm) + sizeof(zplm) + sizeof(nplm)
+        - lpl: offset (from the start of the segment, i.e. lplt/lplm) at which
+            the packet lengths end: lplt for PLT, the end of the current
+            Nplm group for PLM.
+        - offset: the offset (from the start of the segment) of the first
+            packet length. For iplt this is 3 (sizeof(lplt) + sizeof(zplt)),
+            for iplm it is the byte after the group's nplm.
 
         Returns the list as a string, and a flag that is False if the last
         packet length is unterminated (its final byte has the MSB set).
