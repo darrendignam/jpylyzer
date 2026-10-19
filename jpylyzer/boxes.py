@@ -493,11 +493,25 @@ class BoxValidator(Validator):
         # nPC within range 1-255
         self.testFor("nPCIsValid", 1 <= nPC <= 255)
 
-        # Following parameters are repeated for each column
-        for i in range(nPC):
+        # Bit depth of the values of each column (B_i)
+        bValues = [bc.bytesToUnsignedChar(self.boxContents[3 + i:4 + i])
+                   for i in range(nPC)]
 
-            # Bit depth of values created by column i
-            b = bc.bytesToUnsignedChar(self.boxContents[3 + i:4 + i])
+        # Each value is stored in a whole number of bytes, e.g. a 10-bit value
+        # in 2 bytes (C value stored in the low 10 bits)
+        bytesPerColumn = [math.ceil(((b & 127) + 1) / 8) for b in bValues]
+        bytesPerEntry = sum(bytesPerColumn)
+
+        # Box holds NE, NPC, B_i, then NE entries of NPC values each
+        boxLengthIsValid = len(self.boxContents) == 3 + nPC + nE * bytesPerEntry
+        self.testFor("boxLengthIsValid", boxLengthIsValid)
+
+        # Values are only read from a complete, valid table, so a malformed
+        # NE cannot produce output out of proportion to the box
+        readValues = boxLengthIsValid and 1 <= nE <= 1024
+
+        columnOffset = 0
+        for b, columnBytes in zip(bValues, bytesPerColumn):
 
             # Most significant bit indicates whether palette column is signed (1)
             # or unsigned (0). Extracted by applying bit mask of 10000000
@@ -514,25 +528,19 @@ class BoxValidator(Validator):
             # limits)
             self.testFor("bDepthIsValid", 1 <= bDepth <= 38)
 
-            # If bDepth is not a multiple of 8 bits add padding bits
-            # E.g. if bDepth is 10, bDepthPadded will be 16 bits, and
-            # C value will be stored in low 10 bits of 16-bit field
-            bDepthPadded = math.ceil(bDepth / 8) * 8
-            bytesPadded = int(bDepthPadded / 8)
+            if readValues:
+                # Entries are stored one after another, each holding the value
+                # of every column (C_ji: entry j, column i), so the values of
+                # this column are bytesPerEntry apart
+                offset = 3 + nPC + columnOffset
+                for _ in range(nE):
+                    # Convert to integer (cP could be *any* length so we cannot rely
+                    # on struct.unpack!)
+                    cP = bc.bytesToInteger(self.boxContents[offset:offset + columnBytes])
+                    self.addCharacteristic("cP", cP)
+                    offset += bytesPerEntry
 
-            # Start offset of cP entries for this column
-            offset = nPC + 3 + i * (nE * bytesPadded)
-
-            for _ in range(nE):
-                # Get bytes for this entry
-                cPAsBytes = self.boxContents[offset:offset + bytesPadded]
-
-                # Convert to integer (cP could be *any* length so we cannot rely
-                # on struct.unpack!)
-                cP = bc.bytesToInteger(cPAsBytes)
-                self.addCharacteristic("cP", cP)
-
-                offset += bytesPadded
+            columnOffset += columnBytes
 
     def validate_componentMappingBox(self):
         """Component mapping box (ISO/IEC 15444-1 Section I.5.3.5).
