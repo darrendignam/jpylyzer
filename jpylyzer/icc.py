@@ -36,25 +36,24 @@ class IccValidator(Validator):
 
     def readmultiLocalizedUnicodeType(self, tag):
         """
-        Read multiLocalizedUnicodeType structure from ICC.1:2022-05
-        and return first string, ignoring everything else
+        Read multiLocalizedUnicodeType structure from ICC.1:2022-05 (10.15)
+        and return the string of the first record, ignoring everything else.
+        Returns an empty string (and adds a warning) if the tag has no records
+        or the first record does not point to a string inside the tag.
         """
         noRecords = bc.bytesToUInt(tag[8:12])
-        # Set up list to store string offsets
-        stringOffsets = []
-        offset = 16
-        for _ in range(noRecords):
-            stringOffset = bc.bytesToUInt(tag[offset + 8:offset + 12])
-            stringOffsets.append(stringOffset)
-            offset += 12
+        # First record: language (2), country (2), string length (4), string
+        # offset (4) from the start of the tag
+        stringLength = bc.bytesToUInt(tag[20:24])
+        stringOffset = bc.bytesToUInt(tag[24:28])
 
-        # Only read string from first record, and ignore any subsequent strings
-        if len(stringOffsets) > 1:
-            string = tag[stringOffsets[0]:stringOffsets[1]]
-        else:
-            string = tag[stringOffsets[0]:len(tag)]
+        if noRecords < 1 or stringLength < 0 or stringOffset < 0 or \
+                stringOffset + stringLength > len(tag):
+            self.addWarning("ICC multiLocalizedUnicodeType tag contains no readable string")
+            return ""
 
-        return string
+        # Strings are UTF-16BE
+        return tag[stringOffset:stringOffset + stringLength].decode("utf-16-be", "replace")
 
     # Validator function for ICC profiles
 
@@ -218,6 +217,10 @@ class IccValidator(Validator):
             tagOffset = bc.bytesToUInt(
                 self.boxContents[tagStart + 4:tagStart + 8])
             tagSize = bc.bytesToUInt(self.boxContents[tagStart + 8:tagStart + 12])
+
+            if tagOffset < 0 or tagSize < 0:
+                # Tag table is truncated
+                break
 
             # Add tag signature to list
             tagSignatures.append(tagSignature)
