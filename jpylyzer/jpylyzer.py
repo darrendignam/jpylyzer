@@ -36,7 +36,7 @@ Contributors:
 
 import sys
 import os
-import time
+import re
 import datetime
 import glob
 import argparse
@@ -68,6 +68,9 @@ PARSER = argparse.ArgumentParser(
 
 # list of existing files to be analysed
 EXISTING_FILES = []
+
+# Characters that XML 1.0 cannot represent (surrogates are handled separately)
+XML_INVALID_CHARACTERS = re.compile('[\x00-\x08\x0b\x0c\x0e-\x1f\ufffe\uffff]')
 
 # Name space and schema strings
 NS_STRING_2 = 'http://openpreservation.org/ns/jpylyzer/v2/'
@@ -356,24 +359,28 @@ def checkOneFile(path, validationFormat=config.VALIDATION_FORMAT,
     fileName = os.path.basename(path)
     filePath = os.path.abspath(path)
 
-    # If file name / path contain any surrogate pairs, remove them to
-    # avoid problems when writing to XML
-    fileNameCleaned = stripSurrogatePairs(fileName)
-    filePathCleaned = stripSurrogatePairs(filePath)
+    # If file name / path contain any surrogate pairs or characters that
+    # XML cannot represent, clean them up to avoid problems when writing to XML
+    fileNameCleaned = escapeXmlInvalidCharacters(stripSurrogatePairs(fileName))
+    filePathCleaned = escapeXmlInvalidCharacters(stripSurrogatePairs(filePath))
 
     # Produce some general tool and file meta info
     fileInfo.appendChildTagWithText("fileName", fileNameCleaned)
     fileInfo.appendChildTagWithText("filePath", filePathCleaned)
-    fileInfo.appendChildTagWithText(
-        "fileSizeInBytes", str(os.path.getsize(path)))
+    try:
+        fileSize = os.path.getsize(path)
+    except OSError:
+        # File removed or unreadable since it was found; reported below
+        fileSize = -9999
+    fileInfo.appendChildTagWithText("fileSizeInBytes", str(fileSize))
     try:
         dt = os.path.getmtime(path)
         lastModifiedDate = datetime.datetime.fromtimestamp(dt).isoformat()
-    except ValueError:
-        # Dates earlier than 1 Jan 1970 can raise ValueError on Windows
-        # Workaround: replace by lowest possible value (typically 1 Jan 1970)
-        dt = time.ctime(0)
-        lastModifiedDate = datetime.datetime.fromtimestamp(dt).isoformat()
+    except (ValueError, OverflowError, OSError):
+        # Dates outside the platform's range raise ValueError or OverflowError,
+        # and dates earlier than 1 Jan 1970 raise OSError on Windows.
+        # Workaround: replace by lowest possible value (1 Jan 1970)
+        lastModifiedDate = datetime.datetime(1970, 1, 1).isoformat()
     fileInfo.appendChildTagWithText(
         "fileLastModified", lastModifiedDate)
 
@@ -396,21 +403,26 @@ def checkOneFile(path, validationFormat=config.VALIDATION_FORMAT,
         vOptions['nullxmlFlag'] = nullxmlFlag
         vOptions['packetmarkersFlag'] = packetmarkersFlag
 
-        # Set root box according to format and start validation
-        if validationFormat in ['jp2', 'jph']:
-            boxType = 'JP2'
-            resultsJP2 = JP2Validator(vOptions, boxType, fileData).validate()
-        elif validationFormat in ['j2c', 'jhc']:
-            boxType = 'codestream'
-            resultsJP2 = CSValidator(vOptions, boxType, fileData).validate()
+        # Set root box according to format and start validation. The memory
+        # map is closed whether or not validation succeeds
+        try:
+            if validationFormat in ['jp2', 'jph']:
+                boxType = 'JP2'
+                resultsJP2 = JP2Validator(vOptions, boxType, fileData).validate()
+            elif validationFormat in ['j2c', 'jhc']:
+                boxType = 'codestream'
+                resultsJP2 = CSValidator(vOptions, boxType, fileData).validate()
+            else:
+                raise ValueError("unsupported validation format '" +
+                                 str(validationFormat) + "'")
+        finally:
+            if not NO_MMAP_LIB and fileData != "":
+                fileData.close()
 
         fileIsValid = resultsJP2.isValid
         tests = resultsJP2.tests
         characteristics = resultsJP2.characteristics
         warnings = resultsJP2.warnings
-
-        if not NO_MMAP_LIB and fileData != "":
-            fileData.close()
 
         # Add any memory-mapping related warnings to warnings element
         for fmmWarning in fmmWarnings:
@@ -427,18 +439,19 @@ def checkOneFile(path, validationFormat=config.VALIDATION_FORMAT,
     except Exception as ex:
         fileIsValid = False
         success = False
-        exceptionType = type(ex)
+        reportRequest = ", please report to developers by creating " + \
+                        "an issue at https://github.com/openpreserve/jpylyzer/issues"
 
-        if exceptionType == MemoryError:
+        if isinstance(ex, MemoryError):
             failureMessage = "memory error (file size too large)"
-        elif exceptionType == IOError:
-            failureMessage = "I/O error (cannot open file)"
-        elif exceptionType == RuntimeError:
-            failureMessage = "runtime error, please report to developers by creating " + \
-                             "an issue at https://github.com/openpreserve/jpylyzer/issues"
+        elif isinstance(ex, OSError):
+            failureMessage = "I/O error (cannot open file: " + str(ex.strerror) + ")"
+        elif isinstance(ex, RuntimeError):
+            failureMessage = "runtime error (" + type(ex).__name__ + ": " + \
+                str(ex) + ")" + reportRequest
         else:
-            failureMessage = "unknown error, please report to developers by creating " + \
-                             "an issue at https://github.com/openpreserve/jpylyzer/issues"
+            failureMessage = "unknown error (" + type(ex).__name__ + ": " + \
+                str(ex) + ")" + reportRequest
 
         tests = ET.Element("tests")
         characteristics = ET.Element("properties")
@@ -509,6 +522,14 @@ def printHelpAndExit():
     print('')
     PARSER.print_help()
     sys.exit()
+
+
+def escapeXmlInvalidCharacters(ustring):
+    """Replace characters that XML 1.0 cannot represent (C0 controls other than
+    tab, newline and carriage return, and U+FFFE/U+FFFF) by a \\xNN or \\uNNNN
+    escape, so the string stays identifiable."""
+    return XML_INVALID_CHARACTERS.sub(
+        lambda match: match.group().encode("unicode_escape").decode("ascii"), ustring)
 
 
 def stripSurrogatePairs(ustring):
