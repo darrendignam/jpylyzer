@@ -1871,8 +1871,6 @@ is given by the following 2 derived properties (these are always reported, irres
 |foundExpectedNumberOfTileParts|For all tiles, number of encountered tile parts is consistent with expected number of tile parts (values of *tnsot* from [SOT marker](#sot-marker))|
 |maxOneCcocPerComponentMain|No more than one *ccoc* value for each component in main header (only reported if codestream contains any COC marker segments)|
 |maxOneCqccPerComponentMain|No more than one *cqcc* value for each component in main header (only reported if codestream contains any QCC marker segments)|
-|ccocValuesConsecutive|*ccoc* values are consecutive numbers (e.g. 0, 1, 2, etc.)|
-|cqccValuesConsecutive|*cqcc* values are consecutive numbers (e.g. 0, 1, 2, etc.)|
 |tilePartsTLMConsistencyCheck|Number of tile parts indicated by TLM markers equals actual number of tile parts found (only reported if codestream contains any TLM marker segments)|
 |tilePartLengthsConsistencyCheck|Tile part lengths defined by ptlm values in TLM marker segments correspond to psot values in SOT marker segments (only reported if codestream contains any TLM marker segments)|
 |foundEOCMarker|Last 2 bytes in codestream constitute an end of codestream (EOC) marker segment|
@@ -2285,8 +2283,6 @@ is given by the following 2 derived properties (these are always reported, irres
 |RGNAllowed|RGN marker is allowed in this tile part (only allowed in first tile-part of a tile)|
 |maxOneCcocPerComponentTP|No more than one *ccoc* value for each component in tile-part header (only reported if codestream contains any COC marker segments)|
 |maxOneCqccPerComponentTP|No more than one *cqcc* value for each component in tile-part header (only reported if codestream contains any QCC marker segments)|
-|ccocValuesConsecutive|*ccoc* values are consecutive numbers (e.g. 0, 1, 2, etc.)|
-|cqccValuesConsecutive|*cqcc* values are consecutive numbers (e.g. 0, 1, 2, etc.)|
 |foundNextTilePartOrEOC|Tile part start offset + *tilePartLength* points to either start of new tile or EOC marker (useful for detecting within-codestream byte corruption)|
 |foundSODMarker|Last marker segment of tile part is a start-of-data (SOD) marker|
 
