@@ -893,6 +893,10 @@ class BoxValidator(Validator):
         # Check box size, which must be greater than 16 bytes
         self.testFor("boxLengthIsValid", boxLength > 16)
 
+        if boxLength < 16:
+            # Too short to contain a UUID
+            return
+
         # First 16 bytes contain UUID, convert to string of hex digits
         # in standard form
         boxUUID = str(uuid.UUID(bytes=self.boxContents[0:16]))
@@ -990,9 +994,9 @@ class BoxValidator(Validator):
         # Each UUID is 16 byte string, so check if total box length is valid
         self.testFor("boxLengthIsValid", len(self.boxContents) == nU * 16 + 2)
 
-        # Loop through all UUIDs
+        # Loop through all UUIDs that are actually present
         offset = 2
-        for _ in range(nU):
+        for _ in range(min(nU, (len(self.boxContents) - 2) // 16)):
             boxUUID = str(
                 uuid.UUID(bytes=self.boxContents[offset:offset + 16]))
             self.addCharacteristic("uuid", boxUUID)
