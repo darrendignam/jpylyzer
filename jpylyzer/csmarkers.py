@@ -719,6 +719,41 @@ class CSMarkerValidator(Validator):
 
         self.testFor("roiShiftIsValid", roiShiftIsValid)
 
+    def _addQuantizationValues(self, qStyle, length, offset, testName):
+        """Report the SPqcd/SPqcc values of a QCD/QCC marker segment, which start
+        at offset, and test that the segment length matches the quantization
+        style (ISO/IEC 15444-1 Eq A-4, A-5).
+
+        Styles 0 and 2 have one value per subband: 3 * (number of decomposition
+        levels) + 1, in codestream order (NL LL, then HL, LH, HH from level NL
+        down to 1). Style 1 has a single value.
+        """
+        noValueBytes = length - offset
+        # Don't read beyond a truncated segment
+        available = min(length, len(self.boxContents)) - offset
+
+        if qStyle == 0:
+            # One byte per subband: 5 most significant bits -> exponent epsilon in Eq E-5
+            for spq in self.boxContents[offset:offset + available]:
+                self.addCharacteristic("epsilon", (spq >> 3) & 31)
+            self.testFor(testName, noValueBytes >= 1 and (noValueBytes - 1) % 3 == 0)
+
+        elif qStyle in [1, 2]:
+            # Two bytes per value: 11 least significant bits -> mu, 5 most
+            # significant bits -> exponent epsilon in Eq E-3
+            noValues = 1 if qStyle == 1 else max(available, 0) // 2
+            for i in range(noValues):
+                spq = bc.bytesToUShortInt(
+                    self.boxContents[offset + 2 * i:offset + 2 * i + 2])
+                self.addCharacteristic("mu", spq & 2047)
+                self.addCharacteristic("epsilon", (spq >> 11) & 31)
+
+            if qStyle == 1:
+                self.testFor(testName, noValueBytes == 2)
+            else:
+                self.testFor(testName, noValueBytes >= 2 and noValueBytes % 2 == 0 and
+                             (noValueBytes // 2 - 1) % 3 == 0)
+
     def validate_qcd(self):
         """Quantization default (QCD) header fields (ISO/IEC 15444-1 Section A.6.4)."""
         # Length of QCD marker
@@ -747,54 +782,8 @@ class CSMarkerValidator(Validator):
         guardBits = (sqcd >> 5) & 7
         self.addCharacteristic("guardBits", guardBits)
 
-        # Get number of decomposition levels from re-arrranged form of Eq A-4
-        # (TODO: cross-check with info from COD, COC, see:
-        # https://github.com/openpreserve/jpylyzer/issues/132)
-        if qStyle == 0:
-            levels = int((lqcd - 4) / 3)
-        elif qStyle == 2:
-            levels = int((lqcd - 5) / 6)
-
-        offset = 3
-
-        if qStyle == 0:
-            for _ in range(levels):
-                spqcd = bc.bytesToUnsignedChar(
-                    self.boxContents[offset:offset + 1])
-
-                # 5 most significant bits -> exponent epsilon in Eq E-5
-                epsilon = (spqcd >> 3) & 31
-                self.addCharacteristic("epsilon", epsilon)
-
-                offset += 1
-
-        elif qStyle == 1:
-            spqcd = bc.bytesToUShortInt(self.boxContents[offset:offset + 2])
-            # 11 least significant bits: mu in Eq E-3
-            mu = spqcd & 2047
-            self.addCharacteristic("mu", mu)
-
-            # 5 most significant bits: exponent epsilon in Eq E-3
-            epsilon = (spqcd >> 11) & 31
-            self.addCharacteristic("epsilon", epsilon)
-
-        elif qStyle == 2:
-            for _ in range(levels):
-                spqcd = bc.bytesToUShortInt(
-                    self.boxContents[offset:offset + 2])
-
-                # 11 least significant bits: mu in Eq E-3
-                mu = spqcd & 2047
-                self.addCharacteristic("mu", mu)
-
-                # 5 most significant bits: exponent epsilon in Eq E-3
-                epsilon = (spqcd >> 11) & 31
-                self.addCharacteristic("epsilon", epsilon)
-
-                offset += 2
-
-        # Possible enhancement here: instead of reporting coefficients, report result
-        # of corresponding equations (need Annex E from standard for that)
+        # Quantization values for each subband
+        self._addQuantizationValues(qStyle, lqcd, 3, "lqcdConsistentWithQStyle")
 
     def validate_qcc(self):
         """Quantization component (QCC) header fields (ISO/IEC 15444-1 Section A.6.5)."""
@@ -836,61 +825,8 @@ class CSMarkerValidator(Validator):
         guardBits = (sqcc >> 5) & 7
         self.addCharacteristic("guardBits", guardBits)
 
-        # Get number of decomposition levels from re-arrranged form of Eq A-5
-        # (TODO: cross-check with info from COD, COC, see:
-        # https://github.com/openpreserve/jpylyzer/issues/132)
-        if qStyle == 0 and self.csiz < 257:
-            levels = int((lqcc - 4) / 3)
-        elif qStyle == 2:
-            levels = int((lqcc - 5) / 6)
-
-        if qStyle == 0 and self.csiz < 257:
-            levels = int((lqcc - 5) / 3)
-        elif qStyle == 2 and self.csiz < 257:
-            levels = int((lqcc - 6) / 6)
-        elif qStyle == 0 and self.csiz >= 257:
-            levels = int((lqcc - 6) / 3)
-        elif qStyle == 2 and self.csiz >= 257:
-            levels = int((lqcc - 7) / 6)
-
-        if qStyle == 0:
-            for _ in range(levels):
-                spqcc = bc.bytesToUnsignedChar(
-                    self.boxContents[offset:offset + 1])
-
-                # 5 most significant bits -> exponent epsilon in Eq E-5
-                epsilon = (spqcc >> 3) & 31
-                self.addCharacteristic("epsilon", epsilon)
-
-                offset += 1
-
-        elif qStyle == 1:
-            spqcc = bc.bytesToUShortInt(self.boxContents[offset:offset + 2])
-            # 11 least significant bits: mu in Eq E-3
-            mu = spqcc & 2047
-            self.addCharacteristic("mu", mu)
-
-            # 5 most significant bits: exponent epsilon in Eq E-3
-            epsilon = (spqcc >> 11) & 31
-            self.addCharacteristic("epsilon", epsilon)
-
-        elif qStyle == 2:
-            for _ in range(levels):
-                spqcc = bc.bytesToUShortInt(
-                    self.boxContents[offset:offset + 2])
-
-                # 11 least significant bits: mu in Eq E-3
-                mu = spqcc & 2047
-                self.addCharacteristic("mu", mu)
-
-                # 5 most significant bits: exponent epsilon in Eq E-3
-                epsilon = (spqcc >> 11) & 31
-                self.addCharacteristic("epsilon", epsilon)
-
-                offset += 2
-
-        # Possible enhancement here: instead of reporting coefficients, report result
-        # of corresponding equations (need Annex E from standard for that)
+        # Quantization values for each subband
+        self._addQuantizationValues(qStyle, lqcc, offset + 1, "lqccConsistentWithQStyle")
 
     def validate_poc(self):
         """Progression order change (POC) header fields (ISO/IEC 15444-1 Section A.6.6)."""
