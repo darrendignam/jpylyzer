@@ -1148,14 +1148,15 @@ paletteBox
 |nPC|Number of palette columns|
 |bSign<sup>\*</sup>|Indicates whether values created by this palette column are signed or unsigned (repeated for all columns)|
 |bDepth<sup>\*</sup>|Bit depth of values created by this palette column (repeated for all columns)|
-|cP<sup>\*\*</sup>|Value for this entry (repeated for all columns, and for the number of entries)|
+|cP<sup>\*\*</sup>|Value for this entry (repeated for all columns, and for the number of entries). Values follow the *bSign* and *bDepth* of their column. They are only reported if the box length is valid and *nE* is within range|
 
 ### Tests
 
 |Test name|True if|
 |:--------|:------|
-|nEIsValid|*nE* is within range [0,1024]|
+|nEIsValid|*nE* is within range [1,1024]|
 |nPCIsValid|*nPC* is within range [1,255]|
+|boxLengthIsValid|Size of box contents equals 3 + *nPC* + *nE* × (bytes per entry), where each column value takes ceil(*bDepth* / 8) bytes|
 |bDepthIsValid<sup>\*</sup>|*bDepth* is within range [1,38] (repeated for all columns)|
 
 Component Mapping box (child of JP2 Header box) {#component-mapping-box}
