@@ -446,8 +446,17 @@ def checkOneFile(path, validationFormat=config.VALIDATION_FORMAT,
         warnings.appendChildTagWithText("warning", failureMessage)
         shared.printWarning(failureMessage)
 
-    if mixFlag != 0 and fileIsValid:
-        mixProperties = mix.Mix(mixFlag).generateMix(characteristics)
+    mixProperties = None
+    if mixFlag != 0 and fileIsValid and validationFormat in ['jp2', 'jph']:
+        try:
+            mixProperties = mix.Mix(mixFlag).generateMix(characteristics)
+        except (AttributeError, TypeError, ValueError) as ex:
+            # A property MIX relies on is missing or malformed: report it for
+            # this file instead of aborting the whole run
+            msg = "could not generate MIX properties (" + type(ex).__name__ + ": " + \
+                str(ex) + ")"
+            warnings.appendChildTagWithText("warning", msg)
+            shared.printWarning(msg)
 
     # Add status info
     statusInfo.appendChildTagWithText("success", str(success))
@@ -467,7 +476,7 @@ def checkOneFile(path, validationFormat=config.VALIDATION_FORMAT,
     extension = ET.Element('propertiesExtension')
     if mixFlag != 0:
         root.append(extension)
-        if validationFormat in ['jp2', 'jph'] and fileIsValid:
+        if mixProperties is not None:
             extension.append(mixProperties)
     root.append(warnings)
 
