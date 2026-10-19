@@ -13,6 +13,8 @@ INPUT_RECURSIVE_FLAG = False
 NO_PRETTY_XML_FLAG = False
 MIX_FLAG = 0
 ERR_CODE_NO_IMAGES = -7
+# Same exit status as argparse uses for invalid arguments
+ERR_CODE_INVALID_INPUT = 2
 UTF8_ENCODING = "UTF-8"
 PLATFORM = sys.platform
 PYTHON_VERSION = sys.version
