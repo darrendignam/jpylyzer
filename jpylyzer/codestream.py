@@ -370,8 +370,8 @@ class CSValidator(Validator):
             # (can't find this  anywhere the standard though)
             numberOfTilesExpected = min(numberOfTilesExpected, 65535)
 
-            # Create list with one entry for each tile
-            tileIndices = []
+            # Set of the indices of all tiles found
+            tileIndices = set()
 
             # Dictionary that contains expected number of tile parts for each
             # tile
@@ -410,9 +410,7 @@ class CSValidator(Validator):
                         'sot/isot')
                     tilePartsOfTile = characteristicsTilePart.findElementText(
                         'sot/tnsot')
-                    # Add tileIndex to tileIndices, if it doesn't exist already
-                    if tileIndex not in tileIndices:
-                        tileIndices.append(tileIndex)
+                    tileIndices.add(tileIndex)
                     # Expected number of tile-parts for each tile to dictionary
                     if tilePartsOfTile != 0:
                         tilePartsPerTileExpected[tileIndex] = tilePartsOfTile
