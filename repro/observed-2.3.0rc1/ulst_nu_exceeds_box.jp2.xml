@@ -1,0 +1,25 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<jpylyzer xmlns="http://openpreservation.org/ns/jpylyzer/v2/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://openpreservation.org/ns/jpylyzer/v2/ http://jpylyzer.openpreservation.org/jpylyzer-v-2-3.xsd">
+<toolInfo>
+    <toolName>cli.py</toolName>
+    <toolVersion>2.3.0rc1</toolVersion>
+</toolInfo>
+<file>
+    <fileInfo>
+        <fileName>ulst_nu_exceeds_box.jp2</fileName>
+        <filePath>repro/files/ulst_nu_exceeds_box.jp2</filePath>
+        <fileSizeInBytes>670265</fileSizeInBytes>
+        <fileLastModified>2026-10-19T21:17:58.383620</fileLastModified>
+    </fileInfo>
+    <statusInfo>
+        <success>False</success>
+        <failureMessage>unknown error, please report to developers by creating an issue at https://github.com/openpreserve/jpylyzer/issues</failureMessage>
+    </statusInfo>
+    <isValid format="jp2">False</isValid>
+    <tests/>
+    <properties/>
+    <warnings>
+        <warning>unknown error, please report to developers by creating an issue at https://github.com/openpreserve/jpylyzer/issues</warning>
+    </warnings>
+</file>
+</jpylyzer>

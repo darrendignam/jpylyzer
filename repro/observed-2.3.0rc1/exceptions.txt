@@ -1,0 +1,21 @@
+== icc_mluc_zero_records.jp2
+   IndexError: list index out of range
+   at jpylyzer/icc.py:55: string = tag[stringOffsets[0]:len(tag)]
+== resc_zero_denominator.jp2
+   ZeroDivisionError: division by zero
+   at jpylyzer/boxes.py:744: vRescInPixelsPerMeter = (vRcN / vRcD) * (10 ** (vRcE))
+== resd_zero_denominator.jp2
+   ZeroDivisionError: division by zero
+   at jpylyzer/boxes.py:803: vResdInPixelsPerMeter = (vRdN / vRdD) * (10 ** (vRdE))
+== rsiz_0008_undefined_mainlevel.jp2
+   UnboundLocalError: cannot access local variable 'capability' where it is not associated with a value
+   at jpylyzer/csmarkers.py:140: self.addCharacteristic("capability", capability)
+== rsiz_0800_4k_imf_reversible.jp2
+   UnboundLocalError: cannot access local variable 'capability' where it is not associated with a value
+   at jpylyzer/csmarkers.py:140: self.addCharacteristic("capability", capability)
+== ulst_nu_exceeds_box.jp2
+   ValueError: bytes is not a 16-char string
+   at lib/python3.12/uuid.py:187: raise ValueError('bytes is not a 16-char string')
+== uuid_box_shorter_than_16_bytes.jp2
+   ValueError: bytes is not a 16-char string
+   at lib/python3.12/uuid.py:187: raise ValueError('bytes is not a 16-char string')

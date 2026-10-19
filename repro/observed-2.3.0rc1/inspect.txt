@@ -1,0 +1,77 @@
+== cdef_truncated_cassoc.jp2
+   cAssoc: ['-9999']
+   cAssocIsValid: ['True']
+   boxLengthIsValid: ['True', 'True', 'True', 'False', 'True']
+   failed tests: ['boxLengthIsValid']
+== coc_component_index_5_with_csiz_3.jp2
+   csiz: ['3']
+   ccoc: ['5']
+   ccocIsValid: ['True']
+   failed tests: []
+== coc_components_0_and_2.jp2
+   ccoc: ['0', '2']
+   ccocValuesConsecutive: ['True', 'True', 'True', 'True', 'True', 'True', 'True', 'True', 'True', 'True', 'True', 'True', '... (13 total)']
+   maxOneCcocPerComponentMain: ['True']
+   failed tests: ['ccocValuesConsecutive']
+== cpf_last_word_zero.jp2
+   lcpf: ['6']
+   CPFnum: ['65536']
+   pcpfIsValid: (absent)
+   failed tests: []
+== icc_flags_and_attributes_set.jp2
+   embeddedProfile: ['no']
+   profileCannotBeUsedIndependently: ['no']
+   transparency: ['Reflective']
+   glossiness: ['Glossy']
+   polarity: ['Positive']
+   colour: ['Colour']
+   failed tests: []
+== icc_mluc_non_ascii.jp2
+   description: (absent)
+   failed tests: []
+== icc_mluc_records_not_sorted_by_offset.jp2
+   description: (absent)
+   failed tests: []
+== ihdr_bpc_depth_65.jp2
+   bPCDepth: ['65']
+   bPCIsValid: ['True']
+   failed tests: ['bPCDepthConsistentWithSIZ']
+== pclr_2_entries_3_columns.jp2
+   nE: ['2']
+   nPC: ['3']
+   bDepth: ['8', '8', '8']
+   cP: ['1', '2', '3', '4', '5', '6']
+   failed tests: ['paletteAndComponentMappingBoxesOnlyTogether']
+== plm_two_tileparts.jp2
+   lplm: ['7']
+   nplm: ['1']
+   iplm: ['05,01,06']
+   failed tests: []
+== prf_two_words.jp2
+   lprf: ['6']
+   PRFnum: ['69632']
+   pprfIsValid: (absent)
+   failed tests: []
+== rsiz_c000_without_cap.jp2
+   rsiz: ['49152']
+   capability: ['ISO/IEC 15444-2 + CAP']
+   rsizIsValid: ['False']
+   foundCAPMarker: (absent)
+   failed tests: ['rsizIsValid']
+== tlm_st_3.jp2
+   st: ['3']
+   tlmStIsValid: ['False']
+   ltlmIsValid: ['True']
+   tpCount: ['0']
+   failed tests: ['tilePartLengthsConsistencyCheck', 'tilePartsTLMConsistencyCheck', 'tlmStIsValid']
+== xosiz_1000_yosiz_0.j2c
+   xsiz: ['3717']
+   ysiz: ['3701']
+   xOsiz: ['1000']
+   yOsiz: ['0']
+   compressionRatio: ['32.99']
+   failed tests: []
+== pclr_huge_ne_tiny_box.jp2
+   nE: ['65535']
+   nEIsValid: ['False']
+   failed tests: ['nEIsValid', 'paletteAndComponentMappingBoxesOnlyTogether']
