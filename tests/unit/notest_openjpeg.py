@@ -34,7 +34,7 @@ JPYLYZER_DIR = os.path.split(os.path.split(SCRIPT_DIR)[0])[0]
 xsdFile = os.path.join(JPYLYZER_DIR, "xsd/jpylyzer-v-2-1.xsd")
 
 # Directory with test files
-testFilesDir = JPYLYZER_DIR.replace("jpylyzer", "openjpeg-data")
+testFilesDir = os.path.join(os.path.dirname(JPYLYZER_DIR), "openjpeg-data")
 #testFilesDir = os.path.join(testFilesDir, "input/conformance")
 
 # All files in test files directory tree. Includes many
@@ -42,8 +42,6 @@ testFilesDir = JPYLYZER_DIR.replace("jpylyzer", "openjpeg-data")
 # of these tests that doesn't matter
 testFiles = glob.glob(testFilesDir + "/**", recursive=True)
 testFiles = [f for f in testFiles if os.path.isfile(f)]
-
-config.INPUT_WRAPPER_FLAG = True
 
 @pytest.mark.parametrize('inJP2', testFiles)
 

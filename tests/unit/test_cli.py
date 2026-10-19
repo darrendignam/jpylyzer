@@ -19,13 +19,6 @@ BALLOON = os.path.join(JPYLYZER_DIR, "example_files", "balloon.jp2")
 TRUNCATED = os.path.join(JPYLYZER_DIR, "example_files", "balloon_trunc2.jp2")
 
 
-@pytest.fixture(autouse=True)
-def no_files_left_for_other_tests():
-    """checkFiles leaves the module-level file list filled."""
-    yield
-    jpylyzer.EXISTING_FILES.clear()
-
-
 def checked_file_names(capsys, recurse, paths):
     jpylyzer.checkFiles(recurse, paths)
     output = capsys.readouterr().out

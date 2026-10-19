@@ -4,7 +4,6 @@
 """Iplt/Iplm parsing (PLT/PLM marker segments, ISO/IEC 15444-1 A.7.2, A.7.3)."""
 
 import os
-import signal
 import struct
 
 import pytest
@@ -15,25 +14,11 @@ from jpylyzer.csmarkers import CSMarkerValidator
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 BALLOON = os.path.join(SCRIPT_DIR, "..", "..", "example_files", "balloon.jp2")
 
+# Unterminated packet lengths once made parsing loop forever
+pytestmark = pytest.mark.timeout(10)
+
 OPTIONS = {'validationFormat': 'j2c', 'verboseFlag': True,
            'nullxmlFlag': False, 'packetmarkersFlag': True}
-
-
-@pytest.fixture(autouse=True)
-def fail_instead_of_hanging():
-    """A regression of the dangling-byte loop must fail, not hang the run."""
-    if not hasattr(signal, "SIGALRM"):
-        yield
-        return
-
-    def timeout(signum, frame):
-        raise TimeoutError("packet length parsing did not terminate")
-
-    previous = signal.signal(signal.SIGALRM, timeout)
-    signal.alarm(10)
-    yield
-    signal.alarm(0)
-    signal.signal(signal.SIGALRM, previous)
 
 
 def validate(marker, contents):

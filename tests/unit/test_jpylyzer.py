@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 # pylint: disable=missing-docstring
 
-import sys
 import pytest
 
 from jpylyzer.jpylyzer import __version__, checkNoInput, EXISTING_FILES, getFiles
@@ -27,6 +26,3 @@ def test_get_files():
     assert not EXISTING_FILES
     getFiles('./*')
     assert EXISTING_FILES
-    if sys.version_info > (3, 0):
-        EXISTING_FILES.clear()
-        assert not EXISTING_FILES

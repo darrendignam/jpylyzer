@@ -3,7 +3,6 @@
 # pylint: disable=missing-docstring
 """ICC v4 multiLocalizedUnicodeType (ICC.1:2022 10.15) in desc/cprt tags."""
 
-import signal
 import struct
 import time
 
@@ -69,23 +68,8 @@ def test_zero_records():
     assert warnings == ["ICC multiLocalizedUnicodeType tag contains no readable string"]
 
 
-@pytest.fixture
-def fail_instead_of_hanging():
-    if not hasattr(signal, "SIGALRM"):
-        yield
-        return
-
-    def timeout(signum, frame):
-        raise TimeoutError("mluc record loop did not terminate")
-
-    previous = signal.signal(signal.SIGALRM, timeout)
-    signal.alarm(10)
-    yield
-    signal.alarm(0)
-    signal.signal(signal.SIGALRM, previous)
-
-
-def test_huge_record_count_is_not_iterated(fail_instead_of_hanging):
+@pytest.mark.timeout(10)
+def test_huge_record_count_is_not_iterated():
     tag = bytearray(mluc(["sRGB"]))
     tag[8:12] = struct.pack(">I", 0xFFFFFFFF)
     start = time.monotonic()

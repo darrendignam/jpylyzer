@@ -5,7 +5,6 @@
 (Nplm, Iplm...) group per tile-part."""
 
 import os
-import signal
 import struct
 
 import pytest
@@ -18,25 +17,11 @@ SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 XSD = os.path.join(SCRIPT_DIR, "..", "..", "xsd", "jpylyzer-v-2-3.xsd")
 NAMESPACE = "http://openpreservation.org/ns/jpylyzer/v2/"
 
+# Unterminated packet lengths once made parsing loop forever
+pytestmark = pytest.mark.timeout(10)
+
 OPTIONS = {'validationFormat': 'jp2', 'verboseFlag': True,
            'nullxmlFlag': False, 'packetmarkersFlag': True}
-
-
-@pytest.fixture(autouse=True)
-def fail_instead_of_hanging():
-    """Unterminated packet lengths once made parsing loop forever."""
-    if not hasattr(signal, "SIGALRM"):
-        yield
-        return
-
-    def timeout(signum, frame):
-        raise TimeoutError("PLM parsing did not terminate")
-
-    previous = signal.signal(signal.SIGALRM, timeout)
-    signal.alarm(10)
-    yield
-    signal.alarm(0)
-    signal.signal(signal.SIGALRM, previous)
 
 
 def plm(groups, zplm=0):
