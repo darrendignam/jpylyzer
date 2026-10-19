@@ -698,6 +698,23 @@ class BoxValidator(Validator):
 
     # Validator functions for boxes in Resolution box
 
+    @staticmethod
+    def _gridResolution(numerator, denominator, exponent):
+        """Grid resolution in pixels per meter (ISO/IEC 15444-1 Sections I.5.3.7.1,
+        I.5.3.7.2), or -9999 if any field is out of range (e.g. a zero
+        denominator)."""
+        if 1 <= numerator <= 65535 and 1 <= denominator <= 65535 and \
+                -128 <= exponent <= 127:
+            return (numerator / denominator) * (10 ** exponent)
+        return -9999
+
+    @staticmethod
+    def _pixelsPerInch(pixelsPerMeter):
+        """Convert pixels per meter to pixels per inch, keeping -9999 as is."""
+        if pixelsPerMeter == -9999:
+            return -9999
+        return pixelsPerMeter * 25.4e-3
+
     def validate_captureResolutionBox(self):
         """Capture  Resolution Box (ISO/IEC 15444-1 Section I.5.3.7.1)."""
         # Check box size, which must be 10 bytes
@@ -741,19 +758,19 @@ class BoxValidator(Validator):
 
         # Include vertical and horizontal resolution values in pixels per meter
         # and pixels per inch in output
-        vRescInPixelsPerMeter = (vRcN / vRcD) * (10 ** (vRcE))
+        vRescInPixelsPerMeter = self._gridResolution(vRcN, vRcD, vRcE)
         self.addCharacteristic(
             "vRescInPixelsPerMeter", round(vRescInPixelsPerMeter, 2))
 
-        hRescInPixelsPerMeter = (hRcN / hRcD) * (10 ** (hRcE))
+        hRescInPixelsPerMeter = self._gridResolution(hRcN, hRcD, hRcE)
         self.addCharacteristic(
             "hRescInPixelsPerMeter", round(hRescInPixelsPerMeter, 2))
 
-        vRescInPixelsPerInch = vRescInPixelsPerMeter * 25.4e-3
+        vRescInPixelsPerInch = self._pixelsPerInch(vRescInPixelsPerMeter)
         self.addCharacteristic(
             "vRescInPixelsPerInch", round(vRescInPixelsPerInch, 2))
 
-        hRescInPixelsPerInch = hRescInPixelsPerMeter * 25.4e-3
+        hRescInPixelsPerInch = self._pixelsPerInch(hRescInPixelsPerMeter)
         self.addCharacteristic(
             "hRescInPixelsPerInch", round(hRescInPixelsPerInch, 2))
 
@@ -800,19 +817,19 @@ class BoxValidator(Validator):
 
         # Include vertical and horizontal resolution values in pixels per meter
         # and pixels per inch in output
-        vResdInPixelsPerMeter = (vRdN / vRdD) * (10 ** (vRdE))
+        vResdInPixelsPerMeter = self._gridResolution(vRdN, vRdD, vRdE)
         self.addCharacteristic(
             "vResdInPixelsPerMeter", round(vResdInPixelsPerMeter, 2))
 
-        hResdInPixelsPerMeter = (hRdN / hRdD) * (10 ** (hRdE))
+        hResdInPixelsPerMeter = self._gridResolution(hRdN, hRdD, hRdE)
         self.addCharacteristic(
             "hResdInPixelsPerMeter", round(hResdInPixelsPerMeter, 2))
 
-        vResdInPixelsPerInch = vResdInPixelsPerMeter * 25.4e-3
+        vResdInPixelsPerInch = self._pixelsPerInch(vResdInPixelsPerMeter)
         self.addCharacteristic(
             "vResdInPixelsPerInch", round(vResdInPixelsPerInch, 2))
 
-        hResdInPixelsPerInch = hResdInPixelsPerMeter * 25.4e-3
+        hResdInPixelsPerInch = self._pixelsPerInch(hResdInPixelsPerMeter)
         self.addCharacteristic(
             "hResdInPixelsPerInch", round(hResdInPixelsPerInch, 2))
 

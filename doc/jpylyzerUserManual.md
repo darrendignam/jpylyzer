@@ -1273,6 +1273,8 @@ pixels per inch, which are calculated from these values.
 |vRescInPixelsPerInch|Vertical grid resolution, expressed in pixels per inch[^9]|
 |hRescInPixelsPerInch|Horizontal grid resolution, expressed in pixels per inch[^10]|
 
+The four derived resolution values are reported as -9999 if a numerator, denominator or exponent they depend on is out of range (for example a zero denominator).
+
 ### Tests
 
 |Test name|True if|
@@ -1314,6 +1316,8 @@ pixels per inch, which are calculated from these values.
 |hResdInPixelsPerMeter|Horizontal grid resolution, expressed in pixels per meter[^12]|
 |vResdInPixelsPerInch|Vertical grid resolution, expressed in pixels per inch[^13]|
 |hResdInPixelsPerInch|Horizontal grid resolution, expressed in pixels per inch[^14]|
+
+The four derived resolution values are reported as -9999 if a numerator, denominator or exponent they depend on is out of range (for example a zero denominator).
 
 ### Tests
 
