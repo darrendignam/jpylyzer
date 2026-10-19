@@ -1945,8 +1945,8 @@ cod
 |layers|Number of layers|
 |multipleComponentTransformation|Indicates use of multiple component transformation (“yes”/“no”)|
 |levels|Number of decomposition levels|
-|codeBlockWidth|Code block width (-9999 if the segment is too short to contain it)|
-|codeBlockHeight|Code block height (-9999 if the segment is too short to contain it)|
+|codeBlockWidth|Code block width (-9999 if the segment is too short to contain it, or its exponent is outside the range [2,10])|
+|codeBlockHeight|Code block height (-9999 if the segment is too short to contain it, or its exponent is outside the range [2,10])|
 |codingBypass|Indicates use of coding bypass (“yes”/“no”)|
 |resetOnBoundaries|Indicates reset of context probabilities on coding pass boundaries (“yes”/“no”) (does not apply to High Throughput code blocks)|
 |termOnEachPass|Indicates termination on each coding pass (“yes”/“no”)|
@@ -1989,8 +1989,8 @@ coc
 |ccoc|Index of the component to which this marker segment relates|
 |precincts|Indicates default or user-defined precinct size (“default”/“user defined”)|
 |levels|Number of decomposition levels|
-|codeBlockWidth|Code block width (-9999 if the segment is too short to contain it)|
-|codeBlockHeight|Code block height (-9999 if the segment is too short to contain it)|
+|codeBlockWidth|Code block width (-9999 if the segment is too short to contain it, or its exponent is outside the range [2,10])|
+|codeBlockHeight|Code block height (-9999 if the segment is too short to contain it, or its exponent is outside the range [2,10])|
 |codingBypass|Indicates use of coding bypass (“yes”/“no”)|
 |resetOnBoundaries|Indicates reset of context probabilities on coding pass boundaries (“yes”/“no”)|
 |termOnEachPass|Indicates termination on each coding pass (“yes”/“no”)|

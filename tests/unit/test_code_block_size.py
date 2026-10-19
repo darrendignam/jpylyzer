@@ -36,3 +36,12 @@ def test_code_block_size(marker):
 def test_truncated_segment(marker):
     # Only the number of decomposition levels is present
     assert code_block_size(marker, bytes([5])) == (-9999, -9999)
+
+
+@pytest.mark.parametrize("marker", [COD, COC])
+@pytest.mark.parametrize("offsets,expected", [((8, 8), (1024, 1024)),
+                                              ((9, 0), (-9999, 4)),
+                                              ((255, 255), (-9999, -9999))])
+def test_exponent_out_of_range(marker, offsets, expected):
+    # Exponent offsets 0-8 give the allowed exponents 2-10
+    assert code_block_size(marker, bytes([5, *offsets, 0, 1])) == expected
