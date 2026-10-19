@@ -2057,8 +2057,8 @@ qcd
 |lqcd|Length of QCD marker segment in bytes|
 |qStyle|Quantization style for all components|
 |guardBits|Number of guard bits|
-|epsilon<sup>\*</sup>|- If *qStyle* equals 0 (“no quantization”): *Epsilon* exponent in Eq E-5 of ISO/IEC 15444-1 (repeated for all decomposition levels; order: low to high)<br/>- If *qStyle* equals 1 (“scalar derived”): *Epsilon* exponent in Eq E-3 of ISO/IEC 15444-1<br/>- If *qStyle* equals 2 (“scalar expounded”): *Epsilon* exponent in Eq E-3 of ISO/IEC 15444-1 (repeated for all decomposition levels; order: low to high)|
-|mu<sup>\*</sup>|- If *qStyle* equals 1 (“scalar derived”): *mu* constant in Eq E-3 of ISO/IEC 15444-1<br/>- if *qStyle* equals 2 (“scalar expounded”) : *mu* constant in Eq E-3 of ISO/IEC 15444-1 (repeated for all decomposition levels; order: low to high)|
+|epsilon<sup>\*</sup>|- If *qStyle* equals 0 (“no quantization”): *Epsilon* exponent in Eq E-5 of ISO/IEC 15444-1 (one value per subband, 3 × (number of decomposition levels) + 1, in codestream order: *N<sub>L</sub>LL*, then *HL*, *LH*, *HH* for each decomposition level from *N<sub>L</sub>* down to 1)<br/>- If *qStyle* equals 1 (“scalar derived”): *Epsilon* exponent in Eq E-3 of ISO/IEC 15444-1<br/>- If *qStyle* equals 2 (“scalar expounded”): *Epsilon* exponent in Eq E-3 of ISO/IEC 15444-1 (one value per subband, 3 × (number of decomposition levels) + 1, in codestream order: *N<sub>L</sub>LL*, then *HL*, *LH*, *HH* for each decomposition level from *N<sub>L</sub>* down to 1)|
+|mu<sup>\*</sup>|- If *qStyle* equals 1 (“scalar derived”): *mu* constant in Eq E-3 of ISO/IEC 15444-1<br/>- if *qStyle* equals 2 (“scalar expounded”) : *mu* constant in Eq E-3 of ISO/IEC 15444-1 (one value per subband, 3 × (number of decomposition levels) + 1, in codestream order: *N<sub>L</sub>LL*, then *HL*, *LH*, *HH* for each decomposition level from *N<sub>L</sub>* down to 1)|
 
 ### Tests
 
@@ -2066,6 +2066,7 @@ qcd
 |:--------|:------|
 |lqcdIsValid|*lqcd* is within range [4,197]|
 |qStyleIsValid|*qStyle* equals 0 (“no quantization”), 1 (“scalar derived”), or 2 (“scalar expounded”)|
+|lqcdConsistentWithQStyle|*lqcd* matches *qStyle* (Eq A-4 of ISO/IEC 15444-1): one byte per subband for “no quantization”, a single 2-byte value for “scalar derived”, two bytes per subband for “scalar expounded”, with 3 × (number of decomposition levels) + 1 subbands|
 
 Quantization component (QCC) marker segment {#qcc-marker}
 ------------------------------------------------
@@ -2082,8 +2083,8 @@ qcc
 |cqcc|Index of the component to which this marker segment relates|
 |qStyle|Quantization style for all components|
 |guardBits|Number of guard bits|
-|epsilon<sup>\*</sup>|- If *qStyle* equals 0 (“no quantization”): *Epsilon* exponent in Eq E-5 of ISO/IEC 15444-1 (repeated for all decomposition levels; order: low to high)<br/>- If *qStyle* equals 1 (“scalar derived”): *Epsilon* exponent in Eq E-3 of ISO/IEC 15444-1<br/>- If *qStyle* equals 2 (“scalar expounded”): *Epsilon* exponent in Eq E-3 of ISO/IEC 15444-1 (repeated for all decomposition levels; order: low to high)|
-|mu<sup>\*</sup>|- If *qStyle* equals 1 (“scalar derived”): *mu* constant in Eq E-3 of ISO/IEC 15444-1<br/>- if *qStyle* equals 2 (“scalar expounded”) : *mu* constant in Eq E-3 of ISO/IEC 15444-1 (repeated for all decomposition levels; order: low to high)|
+|epsilon<sup>\*</sup>|- If *qStyle* equals 0 (“no quantization”): *Epsilon* exponent in Eq E-5 of ISO/IEC 15444-1 (one value per subband, 3 × (number of decomposition levels) + 1, in codestream order: *N<sub>L</sub>LL*, then *HL*, *LH*, *HH* for each decomposition level from *N<sub>L</sub>* down to 1)<br/>- If *qStyle* equals 1 (“scalar derived”): *Epsilon* exponent in Eq E-3 of ISO/IEC 15444-1<br/>- If *qStyle* equals 2 (“scalar expounded”): *Epsilon* exponent in Eq E-3 of ISO/IEC 15444-1 (one value per subband, 3 × (number of decomposition levels) + 1, in codestream order: *N<sub>L</sub>LL*, then *HL*, *LH*, *HH* for each decomposition level from *N<sub>L</sub>* down to 1)|
+|mu<sup>\*</sup>|- If *qStyle* equals 1 (“scalar derived”): *mu* constant in Eq E-3 of ISO/IEC 15444-1<br/>- if *qStyle* equals 2 (“scalar expounded”) : *mu* constant in Eq E-3 of ISO/IEC 15444-1 (one value per subband, 3 × (number of decomposition levels) + 1, in codestream order: *N<sub>L</sub>LL*, then *HL*, *LH*, *HH* for each decomposition level from *N<sub>L</sub>* down to 1)|
 
 ### Tests
 
@@ -2091,6 +2092,7 @@ qcc
 |:--------|:------|
 |lqccIsValid|*lqcc* is within range [5,199]|
 |qStyleIsValid|*qStyle* equals 0 (“no quantization”), 1 (“scalar derived”), or 2 (“scalar expounded”)|
+|lqccConsistentWithQStyle|*lqcc* matches *qStyle* (Eq A-5 of ISO/IEC 15444-1): one byte per subband for “no quantization”, a single 2-byte value for “scalar derived”, two bytes per subband for “scalar expounded”, with 3 × (number of decomposition levels) + 1 subbands|
 
 Progression order change (POC) marker segment {#poc-marker}
 ------------------------------------------------
