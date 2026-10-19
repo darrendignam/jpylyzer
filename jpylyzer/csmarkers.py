@@ -105,6 +105,8 @@ class CSMarkerValidator(Validator):
                 capability = "Scalable 4K digital cinema profile"
             elif mainLevel == 7:
                 capability = "Long-term storage profile"
+            else:
+                capability = "Unknown (value not defined in ISO/IEC 15444-1)"
         elif profile == 1:
             capability = "Broadcast Contribution Single Tile Profile, Mainlevel " + \
                 str(mainLevel)
@@ -127,7 +129,7 @@ class CSMarkerValidator(Validator):
             capability = "2k IMF Single/Multi Tile Reversible Profile, Mainlevel " + \
                 str(mainLevel) + "; Sublevel " + str(subLevel)
         elif profile == 8:
-            rsiz = "4k IMF Single/Multi Tile Reversible Profile, Mainlevel " + \
+            capability = "4k IMF Single/Multi Tile Reversible Profile, Mainlevel " + \
                 str(mainLevel) + "; Sublevel " + str(subLevel)
         elif profile == 9:
             capability = "8k IMF Single/Multi Tile Reversible Profile, Mainlevel " + \
