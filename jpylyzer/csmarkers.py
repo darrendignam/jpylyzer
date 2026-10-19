@@ -42,6 +42,14 @@ class CSMarkerValidator(Validator):
 
     # Validator functions for codestream markers and marker segments
 
+    @staticmethod
+    def _codeBlockSize(exponent):
+        """Code-block width or height for its exponent (stored offset + 2), or
+        -9999 if the exponent could not be read from a truncated segment."""
+        if exponent < 2:
+            return -9999
+        return 2 ** exponent
+
     def validate_siz(self):
         """Image and tile size (SIZ) header fields (ISO/IEC 15444-1 Section A.5.1;
         ISO/IEC 15444-15 Section A.2)."""
@@ -364,7 +372,8 @@ class CSMarkerValidator(Validator):
         # value)
         codeBlockWidthExponent = bc.bytesToUnsignedChar(
             self.boxContents[8:9]) + 2
-        self.addCharacteristic("codeBlockWidth", 2 ** codeBlockWidthExponent)
+        self.addCharacteristic("codeBlockWidth",
+                               self._codeBlockSize(codeBlockWidthExponent))
 
         # Value within range 2-10
         codeBlockWidthExponentIsValid = 2 <= codeBlockWidthExponent <= 10
@@ -375,7 +384,8 @@ class CSMarkerValidator(Validator):
         # value)
         codeBlockHeightExponent = bc.bytesToUnsignedChar(
             self.boxContents[9:10]) + 2
-        self.addCharacteristic("codeBlockHeight", 2 ** codeBlockHeightExponent)
+        self.addCharacteristic("codeBlockHeight",
+                               self._codeBlockSize(codeBlockHeightExponent))
 
         # Value within range 2-10
         codeBlockHeightExponentIsValid = 2 <= codeBlockHeightExponent <= 10
@@ -550,7 +560,8 @@ class CSMarkerValidator(Validator):
         # value)
         codeBlockWidthExponent = bc.bytesToUnsignedChar(
             self.boxContents[offset:offset + 1]) + 2
-        self.addCharacteristic("codeBlockWidth", 2 ** codeBlockWidthExponent)
+        self.addCharacteristic("codeBlockWidth",
+                               self._codeBlockSize(codeBlockWidthExponent))
 
         # Value within range 2-10
         codeBlockWidthExponentIsValid = 2 <= codeBlockWidthExponent <= 10
@@ -563,7 +574,8 @@ class CSMarkerValidator(Validator):
         # value)
         codeBlockHeightExponent = bc.bytesToUnsignedChar(
             self.boxContents[offset:offset + 1]) + 2
-        self.addCharacteristic("codeBlockHeight", 2 ** codeBlockHeightExponent)
+        self.addCharacteristic("codeBlockHeight",
+                               self._codeBlockSize(codeBlockHeightExponent))
 
         # Value within range 2-10
         codeBlockHeightExponentIsValid = 2 <= codeBlockHeightExponent <= 10
