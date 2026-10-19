@@ -71,13 +71,10 @@ class BoxValidator(Validator):
     def validate_fileTypeBox(self):
         """File type box (ISO/IEC 15444-1 Section I.5.2;
         ISO/IEC 15444-15 Section D.3)."""
-        # Determine number of compatibility fields from box length
-        numberOfCompatibilityFields = (len(self.boxContents) - 8) / 4
-
-        # This should never produce a decimal number (would indicate missing
-        # data)
-        self.testFor("boxLengthIsValid", numberOfCompatibilityFields == int(
-            numberOfCompatibilityFields))
+        # Box holds BR (4 bytes), MinV (4 bytes) and at least one 4-byte CL
+        # field
+        boxLength = len(self.boxContents)
+        self.testFor("boxLengthIsValid", boxLength >= 12 and boxLength % 4 == 0)
 
         # Brand value
         br = self.boxContents[0:4]
@@ -103,7 +100,7 @@ class BoxValidator(Validator):
         cLList = []
         offset = 8
 
-        for _ in range(int(numberOfCompatibilityFields)):
+        for _ in range(max(boxLength - 8, 0) // 4):
             cL = self.boxContents[offset:offset + 4]
             self.addCharacteristic("cL", cL)
             cLList.append(cL)
@@ -274,7 +271,7 @@ class BoxValidator(Validator):
         # 1. bPCDepth in range 1-38 (including limits)
         # 2. OR bPC equal 255 (indicating that components vary in bit depth)
         bPCDepthIsWithinAllowedRange = 1 <= bPCDepth <= 38
-        bitDepthIsVariable = 1 <= bPC <= 255
+        bitDepthIsVariable = bPC == 255
 
         bPCIsValid = bool(bPCDepthIsWithinAllowedRange or bitDepthIsVariable)
 
@@ -540,6 +537,10 @@ class BoxValidator(Validator):
         This box defines how image channels are identified from actual
         components
         """
+        # Each channel is described by 4 bytes
+        self.testFor("boxLengthIsValid", len(self.boxContents) > 0 and
+                     len(self.boxContents) % 4 == 0)
+
         # Determine number of channels from box length
         numberOfChannels = int(len(self.boxContents) / 4)
 
@@ -552,8 +553,8 @@ class BoxValidator(Validator):
             cMP = bc.bytesToUShortInt(self.boxContents[offset:offset + 2])
             self.addCharacteristic("cMP", cMP)
 
-            # Allowed range: 0 - 16384
-            self.testFor("cMPIsValid", 0 <= cMP <= 16384)
+            # Component index: at most 16384 components, so 0 - 16383
+            self.testFor("cMPIsValid", 0 <= cMP <= 16383)
 
             # Specifies how channel is generated from codestream component
             mTyp = bc.bytesToUnsignedChar(
@@ -627,7 +628,7 @@ class BoxValidator(Validator):
             self.addCharacteristic("cAssoc", cAssoc)
 
             # Allowed range: 0 - 65535
-            self.testFor("cAssocIsValid", 0 <= cTyp <= 65535)
+            self.testFor("cAssocIsValid", 0 <= cAssoc <= 65535)
 
             if cTyp in [1, 2]:
                 alphaChannels.append([cTyp, cAssoc])
