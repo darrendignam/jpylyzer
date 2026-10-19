@@ -229,18 +229,28 @@ class Validator:
         FE2 = 000111111100010
         See table A.36 for more details.
 
-        - lpl: lplt/lplm parameter.
-        - offset: the offset (from marker code) to iplt/iplm parameter.
-            For iplt this will be 3 (sizeof(lplt) + sizeof(zplt)),
-            for iplm this will be 4 sizeof(lplm) + sizeof(zplm) + sizeof(nplm)
+        - lpl: offset (from the start of the segment, i.e. lplt/lplm) at which
+            the packet lengths end: lplt for PLT, the end of the current
+            Nplm group for PLM.
+        - offset: the offset (from the start of the segment) of the first
+            packet length. For iplt this is 3 (sizeof(lplt) + sizeof(zplt)),
+            for iplm it is the byte after the group's nplm.
+
+        Returns the list as a string, and a flag that is False if the last
+        packet length is unterminated (its final byte has the MSB set).
         """
         iplt = ''
+        isComplete = True
+        # Don't over-read on bad lplt/lplm
+        end = min(lpl, len(self.boxContents))
         i = offset
-        while i < lpl and i < len(
-                self.boxContents):  # Don't over-read on bad lplt/lplm
+        while i < end:
             ipl_i_len = 1  # number of bytes making up the current ipl(t|m)_i
             while bc.bytesToUnsignedChar(
                     self.boxContents[i + ipl_i_len - 1:i + ipl_i_len]) & 0x80:
+                if i + ipl_i_len >= end:
+                    isComplete = False
+                    break
                 ipl_i_len += 1
 
             # Join all the segments together
@@ -252,7 +262,7 @@ class Validator:
 
             i += ipl_i_len
             iplt += ('{:0' + str(2 * ipl_i_len) + 'X},').format(iplt_i)
-        return iplt[:-1]
+        return iplt[:-1], isComplete
 
     def _consecutive(self, lst):
         """Return True if items in lst are consecutive numbers."""

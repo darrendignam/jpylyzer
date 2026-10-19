@@ -2378,15 +2378,15 @@ plm
 |:-------|:----------|
 |lplm|Length of PLM marker segment in bytes|
 |zplm|PLM marker segment index|
-|nplm|Number of bytes of Iplm information for the ith tile-part|
-|iplm|Comma separated list of packet length  values (as hexadecimal strings)|
+|nplm|Number of bytes of Iplm information for the ith tile-part (repeated for each tile-part in the segment)|
+|iplm|Comma separated list of packet length values (as hexadecimal strings) of the ith tile-part (repeated for each tile-part in the segment)|
 
 ### Tests
 
 |Test name|True if|
 |:--------|:------|
-|||
-|||
+|nplmIsValid|The *Iplm* bytes announced by *nplm* fit in the marker segment (repeated for each tile-part)|
+|iplmIsValid|Last *iplm* value of the tile-part is terminated (its final byte has the most significant bit unset) (repeated for each tile-part)|
 
 Packed packet headers, main header (PPM) marker segment {#ppm-marker}
 ------------------------------------------------------------
@@ -2423,15 +2423,13 @@ plt
 |:-------|:----------|
 |lplt|Length of PLT marker segment in bytes|
 |zplt|PLT marker segment index|
-|nplm|Number of bytes of Iplm information for the ith tile-part|
 |iplt|Comma separated list of packet length values (as hexadecimal strings)|
 
 ### Tests
 
 |Test name|True if|
 |:--------|:------|
-|||
-|||
+|ipltIsValid|Last *iplt* value is terminated (its final byte has the most significant bit unset)|
 
 Packed packet headers, tile-part header (PPT) marker segment {#ppt-marker}
 -----------------------------------------------------------------
