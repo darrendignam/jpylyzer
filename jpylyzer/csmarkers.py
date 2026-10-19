@@ -197,6 +197,14 @@ class CSMarkerValidator(Validator):
         # yTOsiz must be within range 0 - (2**32)-2
         self.testFor("yTOsizIsValid", 0 <= yTOsiz <= (2 ** 32) - 2)
 
+        # Relations between the fields (Section A.5.1): the image area is not
+        # empty, the tile grid starts at or before the image area, and the
+        # first tile overlaps the image area
+        self.testFor("imageAreaIsValid", xOsiz < xsiz and yOsiz < ysiz)
+        self.testFor("tileOffsetIsValid", xTOsiz <= xOsiz and yTOsiz <= yOsiz)
+        self.testFor("firstTileOverlapsImageArea",
+                     xTsiz + xTOsiz > xOsiz and yTsiz + yTOsiz > yOsiz)
+
         # Number of tiles
         if xTsiz != 0 and yTsiz != 0:
             # If block to prevent zero-division (which should not happen
@@ -680,8 +688,8 @@ class CSMarkerValidator(Validator):
         lrgn = bc.bytesToUShortInt(self.boxContents[0:2])
         self.addCharacteristic("lrgn", lrgn)
 
-        # lrgn must be in range 5-6
-        lrgnIsValid = 5 <= lrgn <= 6
+        # lrgn must be 5 (csiz < 257) or 6 (2-byte component index)
+        lrgnIsValid = lrgn == (5 if self.csiz < 257 else 6)
         self.testFor("lrgnIsValid", lrgnIsValid)
 
         # Size of following field and offset of fields that follow it depend on
@@ -898,8 +906,10 @@ class CSMarkerValidator(Validator):
         lpoc = bc.bytesToUShortInt(self.boxContents[0:2])
         self.addCharacteristic("lpoc", lpoc)
 
-        # lpoc must be in range 9-65,535
-        lpocIsValid = 9 <= lpoc <= 65535
+        # lpoc must be 2 plus a whole, non-zero number of progression order
+        # changes of 7 bytes (csiz < 257) or 9 bytes each (Eq A-6)
+        changeSize = 7 if self.csiz < 257 else 9
+        lpocIsValid = 2 + changeSize <= lpoc <= 65535 and (lpoc - 2) % changeSize == 0
         self.testFor("lpocIsValid", lpocIsValid)
 
         # Get number of progression order changes from re-arranged form of Eq
@@ -983,8 +993,8 @@ class CSMarkerValidator(Validator):
         lcrg = bc.bytesToUShortInt(self.boxContents[0:2])
         self.addCharacteristic("lcrg", lcrg)
 
-        # lcrg must be in range 6-65534
-        lcrgIsValid = 6 <= lcrg <= 65534
+        # lcrg must equal 2 + 4 * csiz (one Xcrg, Ycrg pair per component)
+        lcrgIsValid = lcrg == 2 + 4 * self.csiz
         self.testFor("lcrgIsValid", lcrgIsValid)
 
         offset = 2
@@ -1068,9 +1078,11 @@ class CSMarkerValidator(Validator):
         # Pcap
         pcap = bc.bytesToUInt(self.boxContents[2:6])
 
-        # Extract values of individual bits in pcap to list
+        # Extract values of individual bits in pcap to list (none if pcap
+        # could not be read)
         numBits = 32
-        pcapBits = [(pcap >> bit) & 1 for bit in range(numBits - 1, -1, -1)]
+        pcapBits = [(pcap >> bit) & 1 for bit in range(numBits - 1, -1, -1)] \
+            if pcap != -9999 else []
 
         # List of all referenced ISO parts.
         pcapParts = []
@@ -1087,7 +1099,7 @@ class CSMarkerValidator(Validator):
         noccaps = len(pcapParts)
 
         # Test if noccaps is consistent with lcap
-        self.testFor("lcapIsValid", noccaps == (lcap - 6) / 2)
+        self.testFor("lcapIsValid", pcap != -9999 and noccaps == (lcap - 6) / 2)
 
         # Iterate over all ccap values and put them in a list
         ccaps = []

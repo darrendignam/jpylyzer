@@ -1920,6 +1920,9 @@ siz
 |yTsizIsValid|*yTsiz* is within range [1,2<sup>32</sup> - 1]|
 |xTOsizIsValid|*xTOsiz* is within range [0,2<sup>32</sup> - 2]|
 |yTOsizIsValid|*yTOsiz* is within range [0,2<sup>32</sup> - 2]|
+|imageAreaIsValid|*xOsiz* < *xsiz* and *yOsiz* < *ysiz* (image area is not empty)|
+|tileOffsetIsValid|*xTOsiz* <= *xOsiz* and *yTOsiz* <= *yOsiz* (tile grid starts at or before the image area)|
+|firstTileOverlapsImageArea|*xTsiz* + *xTOsiz* > *xOsiz* and *yTsiz* + *yTOsiz* > *yOsiz*|
 |csizIsValid|*csiz* is within range [1,16384]|
 |lsizConsistentWithCsiz|*lsiz* equals 38 + 3\**csiz*|
 |ssizIsValid<sup>\*</sup>|*ssizDepth* is within range [1,38] (repeated for all components)|
@@ -2036,7 +2039,7 @@ rgn
 
 |Test name|True if|
 |:--------|:------|
-|lrgnIsValid|*lrgn* is within range [5,6]|
+|lrgnIsValid|*lrgn* equals 5 (*csiz* < 257) or 6 (*csiz* >= 257)|
 |crgnIsValid|*crgn* is within range [0,255] (*csiz* < 257) or [0,16383] (*csiz* >= 257)|
 |roiStyleIsValid|*roiStyle* equals 0 (“Implicit ROI (maximum shift)”)|
 |roiShiftIsValid|*roiShift* is within range [0,255] (JP2, J2C) or [0,37] (JPH, JHC)|
@@ -2113,7 +2116,7 @@ poc
 
 |Test name|True if|
 |:--------|:------|
-|lpocIsValid|*lpoc* is within range [9,65535]|
+|lpocIsValid|*lpoc* is within range [9,65535] (*csiz* < 257) or [11,65535] (*csiz* >= 257), and (*lpoc* - 2) is a multiple of 7 (*csiz* < 257) or 9 (*csiz* >= 257)|
 |rspocIsValid<sup>\*</sup>|*rspoc* is within range [0,32] (repeated for all progression order changes)|
 |cspocIsValid<sup>\*</sup>|*cspoc* is within range [0,255] (*csiz* < 257) or [0,16383] (*csiz >= 257) (repeated for all progression order changes)|
 |lyepocIsValid<sup>\*</sup>|*lyepoc* is within range [1,65535] (repeated for all progression order changes)|
@@ -2140,7 +2143,7 @@ crg
 
 |Test name|True if|
 |:--------|:------|
-|lcrgIsValid|*lcrg* is within range [6,65534]|
+|lcrgIsValid|*lcrg* equals 2 + 4 × *csiz*|
 |xcrgIsValid<sup>\*</sup>|*xcrg* is within range [0,65535] (repeated for all components)|
 |ycrgIsValid<sup>\*</sup>|*ycrg* is within range [0,65535] (repeated for all components)|
 
@@ -2193,7 +2196,7 @@ cap
 
 |Test name|True if|
 |:--------|:------|
-|lcapIsValid|Number of *pcapPart* entries equals (*lcap* - 6)/2|
+|lcapIsValid|*pcap* could be read, and the number of *pcapPart* entries equals (*lcap* - 6)/2|
 |pcap15IsValid|15th most significant bit of *pcap* equals 1 (JPH, JHC)|
 
 Profile (PRF) marker segment {#prf-marker}
