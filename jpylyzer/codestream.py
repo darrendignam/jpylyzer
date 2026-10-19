@@ -472,10 +472,6 @@ class CSValidator(Validator):
                     "maxOneCqccPerComponentMain", len(
                         set(cqccValuesMain)) == len(cqccValuesMain))
 
-            # Test if ccoc and cqcc values are consecutive numbers
-            self.testFor("ccocValuesConsecutive", self._consecutive(ccocValuesMain))
-            self.testFor("cqccValuesConsecutive", self._consecutive(cqccValuesMain))
-
             # Consistency tests on TLM marker segments
             if len(self.characteristics.findall('tlm')) > 0:
                 # Test if sum of tpCount values from TLM marker segments
