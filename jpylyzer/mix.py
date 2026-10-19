@@ -169,9 +169,10 @@ class Mix:
             return None
 
         mixIcm = ET.Element('mix:ImageCaptureMetadata')
+        # XMP from an XML box, or else from an XMP UUID box
         rdfBox = properties.find('xmlBox/{adobe:ns:meta/}xmpmeta/'
                                  '{http://www.w3.org/1999/02/22-rdf-syntax-ns#}RDF')
-        if rdfBox is not None:
+        if rdfBox is None:
             rdfBox = properties.find('uuidBox/{adobe:ns:meta/}xmpmeta/'
                                      '{http://www.w3.org/1999/02/22-rdf-syntax-ns#}RDF')
         if rdfBox is None:
