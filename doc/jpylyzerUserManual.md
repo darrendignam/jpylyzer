@@ -935,7 +935,7 @@ fileTypeBox
 
 |Test name|True if|
 |:--------|:------|
-|boxLengthIsValid|(Size of box – 8) /4 is a whole number (integer)|
+|boxLengthIsValid|Size of box contents is at least 12 bytes (brand, minor version and at least one compatibility field) and a multiple of 4|
 |brandIsValid|*br* equals 0x6a703220 (“jp2 ”) for JP2, or 0x6a706820 (“jph ”)for JPH|
 |minorVersionIsValid|*minV* equals 0|
 |compatibilityListIsValid|Sequence of compatibility (*cL*) fields includes one entry that equals 0x6a703220 (“jp2 ”) for JP2, or 0x6a706820 (“jph ”)for JPH|
@@ -1013,7 +1013,7 @@ imageHeaderBox
 |heightIsValid|*height* is within range [1, 2<sup>32</sup> - 1]|
 |widthIsValid|*width* is within range [1, 2<sup>32</sup> - 1]|
 |nCIsValid|*nC* is within range [1, 16384]|
-|bPCIsValid|*bPCDepth* is within range [1,38] OR *bPCSign* equals 255 (in the latter case the bit depth is variable)|
+|bPCIsValid|*bPCDepth* is within range [1,38] OR the *bPC* field equals 255 (in the latter case the bit depth is variable)|
 |cIsValid|*c* equals 7 (“jpeg2000”)|
 |unkCIsValid|*unkC* equals 0 (“no”) or 1 (“yes”)|
 |iPRIsValid|*iPR* equals 0 (“no”) or 1 (“yes”)|
@@ -1181,7 +1181,8 @@ componentMappingBox
 
 |Test name|True if|
 |:--------|:------|
-|cMPIsValid|*cMP* is within range [0,16384]|
+|boxLengthIsValid|Size of box contents is a non-zero multiple of 4 bytes|
+|cMPIsValid|*cMP* is within range [0,16383]|
 |mTypIsValid<sup>\*</sup>|*mTyp* is within range [0,1] (repeated for all channels)|
 |pColIsValid<sup>\*</sup>|*pCol* is 0 if *mTyp* is 0 (repeated for all channels)|
 
