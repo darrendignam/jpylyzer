@@ -2008,7 +2008,7 @@ coc
 |Test name|True if|
 |:--------|:------|
 |lcocIsValid|*lcoc* is within range [9,43]|
-|ccocIsValid|*ccoc* is within range [0,255] (*csiz* < 257) or [0,16383] (*csiz* >= 257)|
+|ccocIsValid|*ccoc* refers to an existing component: within range [0, *csiz* - 1]|
 |levelsIsValid|*levels* is within range [0,32]|
 |lcocConsistencyCheck|*lcoc* value is consistent with *levels*, *csiz* and *precincts* (Eq A-3 in ISO/IEC 15444-1)|
 |codeBlockWidthExponentIsValid|*codeBlockWidthExponent* is within range [2,10]|
@@ -2039,7 +2039,7 @@ rgn
 |Test name|True if|
 |:--------|:------|
 |lrgnIsValid|*lrgn* is within range [5,6]|
-|crgnIsValid|*crgn* is within range [0,255] (*csiz* < 257) or [0,16383] (*csiz* >= 257)|
+|crgnIsValid|*crgn* refers to an existing component: within range [0, *csiz* - 1]|
 |roiStyleIsValid|*roiStyle* equals 0 (“Implicit ROI (maximum shift)”)|
 |roiShiftIsValid|*roiShift* is within range [0,255] (JP2, J2C) or [0,37] (JPH, JHC)|
 
@@ -2091,6 +2091,7 @@ qcc
 |Test name|True if|
 |:--------|:------|
 |lqccIsValid|*lqcc* is within range [5,199]|
+|cqccIsValid|*cqcc* refers to an existing component: within range [0, *csiz* - 1]|
 |qStyleIsValid|*qStyle* equals 0 (“no quantization”), 1 (“scalar derived”), or 2 (“scalar expounded”)|
 |lqccConsistentWithQStyle|*lqcc* matches *qStyle* (Eq A-5 of ISO/IEC 15444-1): one byte per subband for “no quantization”, a single 2-byte value for “scalar derived”, two bytes per subband for “scalar expounded”, with 3 × (number of decomposition levels) + 1 subbands|
 

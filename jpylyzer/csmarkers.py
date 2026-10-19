@@ -494,15 +494,14 @@ class CSMarkerValidator(Validator):
         if self.csiz < 257:
             # Index of component to which this marker relates
             ccoc = bc.bytesToUnsignedChar(self.boxContents[2:3])
-            ccocIsValid = 0 <= ccoc <= 255
             offset = 3
         else:
             ccoc = bc.bytesToUShortInt(self.boxContents[2:4])
-            ccocIsValid = 0 <= ccoc <= 16383
             offset = 4
 
         self.addCharacteristic("ccoc", ccoc)
-        self.testFor("ccocIsValid", ccocIsValid)
+        # Must refer to an existing component
+        self.testFor("ccocIsValid", 0 <= ccoc < self.csiz)
 
         # Coding style for this component
         scoc = bc.bytesToUnsignedChar(self.boxContents[offset:offset + 1])
@@ -691,15 +690,14 @@ class CSMarkerValidator(Validator):
         if self.csiz < 257:
             # Index of component to which this marker relates
             crgn = bc.bytesToUnsignedChar(self.boxContents[2:3])
-            crgnIsValid = 0 <= crgn <= 255
             offset = 3
         else:
             crgn = bc.bytesToUShortInt(self.boxContents[2:4])
-            crgnIsValid = 0 <= crgn <= 16383
             offset = 4
 
         self.addCharacteristic("crgn", crgn)
-        self.testFor("crgnIsValid", crgnIsValid)
+        # Must refer to an existing component
+        self.testFor("crgnIsValid", 0 <= crgn < self.csiz)
 
         # ROI style for the current ROI
         roiStyle = bc.bytesToUnsignedChar(self.boxContents[offset:offset + 1])
@@ -808,6 +806,8 @@ class CSMarkerValidator(Validator):
             offset = 4
 
         self.addCharacteristic("cqcc", cqcc)
+        # Must refer to an existing component
+        self.testFor("cqccIsValid", 0 <= cqcc < self.csiz)
 
         # Quantization style for this component
         sqcc = bc.bytesToUnsignedChar(self.boxContents[offset:offset + 1])
