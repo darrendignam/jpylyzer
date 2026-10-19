@@ -157,6 +157,16 @@ def bytesToText(bytestring):
     return result
 
 
+def getBitValueFromRight(n, p):
+    """Get the bit value of number n at position p, counting from the least
+    significant bit (position 0). Returns -9999 if n is -9999 (the value the
+    unpack functions return when decoding fails).
+    """
+    if n == -9999:
+        return -9999
+    return (n >> p) & 1
+
+
 def getBitValue(n, p, wordLength=8):
     """Get the bit value of denary (base 10) number n at the equivalent binary
     position p (binary count starts at position 1 from the left).
