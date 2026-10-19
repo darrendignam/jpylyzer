@@ -1339,8 +1339,9 @@ class CSMarkerValidator(Validator):
         self.addCharacteristic("nplm", nplm)
 
         # Comma separated list of packet lengths
-        iplm = self._parse_ipl(lplm, 4)
+        iplm, iplmIsValid = self._parse_ipl(lplm, 4)
         self.addCharacteristic("iplm", iplm)
+        self.testFor("iplmIsValid", iplmIsValid)
 
     def validate_plt(self):
         """Packet length, tile-part header (PLT) marker segment (ISO/IEC 15444-1 Section A.7.3).
@@ -1356,8 +1357,9 @@ class CSMarkerValidator(Validator):
         self.addCharacteristic("zplt", zplt)
 
         # Comma separated list of packet lengths
-        iplt = self._parse_ipl(lplt, 3)
+        iplt, ipltIsValid = self._parse_ipl(lplt, 3)
         self.addCharacteristic("iplt", iplt)
+        self.testFor("ipltIsValid", ipltIsValid)
 
     def validate_ppm(self):
         """Empty function."""
