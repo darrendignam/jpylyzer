@@ -45,8 +45,10 @@ class CSMarkerValidator(Validator):
     @staticmethod
     def _codeBlockSize(exponent):
         """Code-block width or height for its exponent (stored offset + 2), or
-        -9999 if the exponent could not be read from a truncated segment."""
-        if exponent < 2:
+        -9999 if the exponent could not be read from a truncated segment or is
+        outside the allowed range 2-10 (a stored 255 would otherwise give a
+        78-digit number, which some XML schema validators reject)."""
+        if not 2 <= exponent <= 10:
             return -9999
         return 2 ** exponent
 
