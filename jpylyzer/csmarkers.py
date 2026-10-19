@@ -1210,26 +1210,19 @@ class CSMarkerValidator(Validator):
         ttlmLength = st
         ptlmLength = (sp + 1) * 2
 
-        # Calculate number of tile parts from ltlm, st and sp, following Eq A-7
-        if st == 0 and sp == 0:
-            tpCount = (ltlm - 4) / 2
-        elif st == 1 and sp == 0:
-            tpCount = (ltlm - 4) / 3
-        elif st == 2 and sp == 0:
-            tpCount = (ltlm - 4) / 4
-        elif st == 0 and sp == 1:
-            tpCount = (ltlm - 4) / 4
-        elif st == 1 and sp == 1:
-            tpCount = (ltlm - 4) / 5
-        elif st == 2 and sp == 1:
-            tpCount = (ltlm - 4) / 6
+        # Calculate number of tile parts from ltlm, st and sp, following Eq A-7:
+        # each tile-part takes st bytes of Ttlm and (sp + 1) * 2 bytes of Ptlm
+        if st in [0, 1, 2]:
+            entrySize = ttlmLength + ptlmLength
+            tpCount = int((ltlm - 4) / entrySize)
+            ltlmIsValid = (ltlm - 4) % entrySize == 0
         else:
-            # Bogus value in case of unexpected st, sp values
+            # Bogus value in case of unexpected st values (tlmStIsValid fails)
             tpCount = 0
+            ltlmIsValid = True
 
-        ltlmIsValid = tpCount.is_integer()
         self.testFor("ltlmIsValid", ltlmIsValid)
-        self.addCharacteristic("tpCount", int(tpCount))
+        self.addCharacteristic("tpCount", tpCount)
 
         if ltlmIsValid:
             offset = 4
