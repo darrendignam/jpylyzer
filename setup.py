@@ -20,7 +20,7 @@ def find_version(*file_paths):
 
 INSTALL_REQUIRES = []
 
-PYTHON_REQUIRES = '>=3.2, <4'
+PYTHON_REQUIRES = '>=3.8, <4'
 
 README_TEXT = read('README.md')
 

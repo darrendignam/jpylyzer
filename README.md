@@ -12,7 +12,7 @@ Please visit the jpylyzer homepage for links to the most recent package download
 
 ## CI Status
 
-- [![Build Status](https://app.travis-ci.com/openpreserve/jpylyzer.svg?branch=master)](https://app.travis-ci.com/github/openpreserve/jpylyzer "Jpylyzer Travis-CI integration build") Travis-CI
+- [![Tests](https://github.com/openpreserve/jpylyzer/actions/workflows/tests.yml/badge.svg?branch=master)](https://github.com/openpreserve/jpylyzer/actions/workflows/tests.yml "Jpylyzer GitHub Actions tests") GitHub Actions
 
 - [![Build Status](https://jenkins.openpreservation.org/buildStatus/icon?job=jpylyzer%2Fjpylyzer)](https://jenkins.openpreservation.org/job/jpylyzer/job/jpylyzer/) OPF Jenkins
 
@@ -180,6 +180,29 @@ The table below shows how each higher-level classe imports all classes that are 
 |TilePartValidator|CSMarkerValidator|
 |CSMarkerValidator|-|
 |IccValidator|-|
+
+## Running the tests
+
+Install the test dependencies and run pytest from the repository root:
+
+```bash
+python -m pip install pytest lxml
+python -m pytest
+```
+
+Most tests build their input in memory from `example_files/balloon.jp2`. The
+tests in `tests/unit/test_testfiles.py` also need the
+[jpylyzer-test-files](https://github.com/openpreserve/jpylyzer-test-files)
+corpus. They look for its `files` directory in the path given by the
+`JPYLYZER_TEST_FILES` environment variable, or else in a `jpylyzer-test-files`
+directory next to the jpylyzer directory. If neither exists, they are skipped
+(`python -m pytest -rs` shows why).
+
+`tests/unit/test_regressions.py` holds one end-to-end case for each defect
+fixed after the 2.3.0rc1 review, and `tests/unit/test_robustness.py` runs
+seeded mutations of `balloon.jp2` that must neither crash, hang nor produce a
+report that fails schema validation. Every test fails, rather than hangs, if
+it runs longer than its time limit (see `tests/unit/conftest.py`).
 
 ## Steps in preparing a jpylyzer release
 

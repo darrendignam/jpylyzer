@@ -1,0 +1,43 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    name: Python ${{ matrix.python-version }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+        include:
+          # The test corpus contains file names that Windows and macOS cannot
+          # check out, so these run without it (the corpus tests are skipped)
+          - os: windows-latest
+            python-version: "3.12"
+          - os: macos-latest
+            python-version: "3.12"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check out test corpus
+        if: runner.os == 'Linux'
+        uses: actions/checkout@v4
+        with:
+          repository: openpreserve/jpylyzer-test-files
+          path: jpylyzer-test-files
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install test dependencies
+        run: python -m pip install pytest lxml
+
+      - name: Run tests
+        env:
+          JPYLYZER_TEST_FILES: ${{ github.workspace }}/jpylyzer-test-files/files
+        run: python -m pytest -rs
