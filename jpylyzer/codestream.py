@@ -349,8 +349,9 @@ class CSValidator(Validator):
             # are defined there
             rsiz = self.characteristics.findElementText(
                 'siz/rsiz')
-            # Two most significant bits of rsiz indicate CAP marker use
-            if (rsiz >> 14) & 15 == 1:
+            # Bit 14 of rsiz indicates CAP marker use, whether or not bit 15
+            # (Part 2 extensions) is also set (ISO/IEC 15444-1 Table A.10)
+            if rsiz >= 0 and rsiz & 0x4000:
                 self.testFor("foundCAPMarker", foundCAPMarker)
 
             # Remainder of codestream is a sequence of tile parts, followed by one
