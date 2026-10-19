@@ -84,16 +84,16 @@ class Validator:
 
     def validate(self):
         """Generic validation function."""
-        try:
-            to_call = getattr(self, "validate_" + self.boxType)
-            to_call()
-        except AttributeError:
+        to_call = getattr(self, "validate_" + self.boxType, None)
+        if to_call is None:
             # Don't think this should ever happen because all known boxes
             # are defined in boxTypeMap and anything not in boxTypeMap should
             # trigger "unknown" box validator function
             msg = "ignoring '" + self.boxType + \
                 "' (validator function not yet implemented)"
             shared.printWarning(msg)
+        else:
+            to_call()
         return self
 
     def _isValid(self):
