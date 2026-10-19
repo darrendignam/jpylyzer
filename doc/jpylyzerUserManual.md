@@ -2385,8 +2385,7 @@ plm
 
 |Test name|True if|
 |:--------|:------|
-|||
-|||
+|iplmIsValid|Last *iplm* value is terminated (its final byte has the most significant bit unset)|
 
 Packed packet headers, main header (PPM) marker segment {#ppm-marker}
 ------------------------------------------------------------
@@ -2430,8 +2429,7 @@ plt
 
 |Test name|True if|
 |:--------|:------|
-|||
-|||
+|ipltIsValid|Last *iplt* value is terminated (its final byte has the most significant bit unset)|
 
 Packed packet headers, tile-part header (PPT) marker segment {#ppt-marker}
 -----------------------------------------------------------------
