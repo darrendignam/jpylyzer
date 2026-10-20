@@ -231,6 +231,76 @@ class BoxValidator(Validator):
         self.testFor("paletteAndComponentMappingBoxesOnlyTogether",
                      paletteAndComponentMappingBoxesOnlyTogether)
 
+        self._validateChannels(subBoxTypes)
+
+    def _numberOfColours(self):
+        """Number of colours of the colourspace in the first Colour Specification
+        box, or None if not known (ISO/IEC 15444-1 Section I.5.3.3)."""
+        meth = self.characteristics.findElementText('colourSpecificationBox/meth')
+        if meth == 1:
+            enumCS = self.characteristics.findElementText('colourSpecificationBox/enumCS')
+            return {16: 3, 17: 1, 18: 3}.get(enumCS)
+        if meth == 2:
+            colourSpace = self.characteristics.findElementText(
+                'colourSpecificationBox/icc/colourSpace')
+            return {b'RGB ': 3, b'GRAY': 1}.get(colourSpace)
+        return None
+
+    def _validateChannels(self, subBoxTypes):
+        """Consistency of the component, palette, channel and colour definitions
+        in the Image Header, Bits Per Component, Palette, Component Mapping and
+        Channel Definition boxes (ISO/IEC 15444-1 Sections I.5.3.1 to I.5.3.6)."""
+        nC = self.characteristics.findElementText('imageHeaderBox/nC')
+        if not isinstance(nC, int) or nC < 1:
+            return
+
+        # Bits Per Component box: only if BPC in the Image Header box is 255
+        # (signalled as sign 1, depth 128), with one value for each component
+        if self.boxTagMap['bitsPerComponentBox'] in subBoxTypes:
+            sign = self.characteristics.findElementText('imageHeaderBox/bPCSign')
+            depth = self.characteristics.findElementText('imageHeaderBox/bPCDepth')
+            self.testFor("bitsPerComponentBoxOnlyIfBPCIs255", sign == 1 and depth == 128)
+            self.testFor("bPCValuesConsistentWithNC", len(
+                self.characteristics.findAllText('bitsPerComponentBox/bPCDepth')) == nC)
+
+        # Component Mapping box: component indices below nC, palette columns
+        # below nPC; it defines the channels if present, otherwise each
+        # component is a channel
+        numberOfChannels = nC
+        if self.boxTagMap['componentMappingBox'] in subBoxTypes:
+            cMPs = self.characteristics.findAllText('componentMappingBox/cMP')
+            mTyps = self.characteristics.findAllText('componentMappingBox/mTyp')
+            pCols = self.characteristics.findAllText('componentMappingBox/pCol')
+            self.testFor("cMPValuesConsistentWithNC", all(cMP < nC for cMP in cMPs))
+            nPC = self.characteristics.findElementText('paletteBox/nPC')
+            if isinstance(nPC, int):
+                self.testFor("pColValuesConsistentWithNPC",
+                             all(pCol < nPC for mTyp, pCol in zip(mTyps, pCols)
+                                 if mTyp == 1))
+            numberOfChannels = len(cMPs)
+
+        # JP2: every colour of the colourspace needs a channel (I.5.3.6). This
+        # is relaxed for JPH (ISO/IEC 15444-15 Section D.6.2)
+        numberOfColours = self._numberOfColours() if self.format == 'jp2' else None
+
+        if self.boxTagMap['channelDefinitionBox'] in subBoxTypes:
+            cNs = self.characteristics.findAllText('channelDefinitionBox/cN')
+            cTyps = self.characteristics.findAllText('channelDefinitionBox/cTyp')
+            cAssocs = self.characteristics.findAllText('channelDefinitionBox/cAssoc')
+            self.testFor("cNValuesConsistentWithChannels",
+                         all(cN < numberOfChannels for cN in cNs))
+            self.testFor("cNValuesUnique", len(set(cNs)) == len(cNs))
+            if numberOfColours:
+                # One colour channel (cTyp 0) for each colour, 1 to numberOfColours
+                colourAssociations = sorted(cAssoc for cTyp, cAssoc in zip(cTyps, cAssocs)
+                                            if cTyp == 0)
+                self.testFor("colourChannelsConsistentWithColourSpace",
+                             colourAssociations == list(range(1, numberOfColours + 1)))
+        elif numberOfColours:
+            # Without a Channel Definition box channel i is colour i + 1
+            self.testFor("numberOfChannelsConsistentWithColourSpace",
+                         numberOfChannels >= numberOfColours)
+
     # Validator functions for boxes in JP2 Header superbox
     def validate_imageHeaderBox(self):
         """Image header box (ISO/IEC 15444-1 Section I.5.3.1).

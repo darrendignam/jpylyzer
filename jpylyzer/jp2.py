@@ -101,6 +101,12 @@ class JP2Validator(Validator):
             self.testFor(
                 "containsIntellectualPropertyBox",
                 containsIntellectualPropertyBox)
+        elif iPR == 0:
+            # No rights information, so no Intellectual Property box
+            # (ISO/IEC 15444-1 Section I.5.3.1)
+            self.testFor(
+                "noIntellectualPropertyBoxIfIPRIsZero",
+                tagIntellectualPropertyBox not in boxTypes)
 
         # Is the first box a Signature Box (ISO/IEC 15444-1 Section I.5.1)?
         try:
