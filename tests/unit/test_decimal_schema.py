@@ -43,11 +43,15 @@ def balloon_with_jp2h(edit):
 
 
 def icc_profile(whitePointZ):
-    """Minimal ICC v4 display profile with a desc and a wtpt tag."""
+    """Minimal ICC v4 RGB matrix/TRC display profile."""
     desc = b"mluc" + bytes(4) + struct.pack(">II", 1, 12) + b"enUS" + \
         struct.pack(">II", 8, 28) + "tiny".encode("utf-16-be")
     wtpt = b"XYZ " + bytes(4) + struct.pack(">iii", 63190, 65536, whitePointZ)
-    tags = [(b"desc", desc), (b"wtpt", wtpt)]
+    column = b"XYZ " + bytes(4) + struct.pack(">iii", 63190, 65536, 54061)
+    curve = b"curv" + bytes(4) + struct.pack(">I", 0)
+    tags = [(b"desc", desc), (b"wtpt", wtpt)] + \
+        [(name, column) for name in (b"rXYZ", b"gXYZ", b"bXYZ")] + \
+        [(name, curve) for name in (b"rTRC", b"gTRC", b"bTRC")]
     offset = 128 + 4 + 12 * len(tags)
     table, data = struct.pack(">I", len(tags)), b""
     for signature, body in tags:
