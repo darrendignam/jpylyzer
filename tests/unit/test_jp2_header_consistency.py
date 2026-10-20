@@ -68,42 +68,41 @@ def failed_new_tests(tmp_path, data):
                    elt.text == "False"})
 
 
-@pytest.mark.parametrize("data,expected", [
-    (balloon(), []),
-    (balloon(cdef((0, 0, 1), (1, 0, 2), (2, 0, 3))), []),
-    (balloon(cdef((2, 0, 3), (0, 0, 1), (1, 0, 2))), []),
-    (balloon(cdef((0, 0, 1), (0, 0, 2), (2, 0, 3))), ["cNValuesUnique"]),
-    (balloon(cdef((0, 0, 1), (1, 0, 2), (3, 0, 3))), ["cNValuesConsistentWithChannels"]),
-    (balloon(cdef((0, 0, 1), (1, 0, 2), (2, 0, 5))),
-     ["colourChannelsConsistentWithColourSpace"]),
-    (balloon(cdef((0, 0, 1), (1, 0, 1), (2, 0, 3))),
-     ["colourChannelsConsistentWithColourSpace"]),
-    (balloon(cdef((0, 0, 1), (1, 0, 2), (2, 0, 0))),
-     ["colourChannelsConsistentWithColourSpace"]),
-    (balloon(cdef((0, 0, 1), (1, 0, 2))), ["colourChannelsConsistentWithColourSpace"]),
+# Parameters are the extra JP2 header boxes (and ihdr fields), not whole files:
+# test ids built from 670 kB files exceed the 32767-character limit of the
+# PYTEST_CURRENT_TEST environment variable on Windows
+@pytest.mark.parametrize("headerBoxes,expected", [
+    (b"", []),
+    (cdef((0, 0, 1), (1, 0, 2), (2, 0, 3)), []),
+    (cdef((2, 0, 3), (0, 0, 1), (1, 0, 2)), []),
+    (cdef((0, 0, 1), (0, 0, 2), (2, 0, 3)), ["cNValuesUnique"]),
+    (cdef((0, 0, 1), (1, 0, 2), (3, 0, 3)), ["cNValuesConsistentWithChannels"]),
+    (cdef((0, 0, 1), (1, 0, 2), (2, 0, 5)), ["colourChannelsConsistentWithColourSpace"]),
+    (cdef((0, 0, 1), (1, 0, 1), (2, 0, 3)), ["colourChannelsConsistentWithColourSpace"]),
+    (cdef((0, 0, 1), (1, 0, 2), (2, 0, 0)), ["colourChannelsConsistentWithColourSpace"]),
+    (cdef((0, 0, 1), (1, 0, 2)), ["colourChannelsConsistentWithColourSpace"]),
 ])
-def test_channel_definitions(tmp_path, data, expected):
-    assert failed_new_tests(tmp_path, data) == expected
+def test_channel_definitions(tmp_path, headerBoxes, expected):
+    assert failed_new_tests(tmp_path, balloon(headerBoxes)) == expected
 
 
-@pytest.mark.parametrize("data,expected", [
-    (balloon(pclr(3) + cmap((0, 1, 0), (0, 1, 1), (0, 1, 2))), []),
-    (balloon(pclr(3) + cmap((0, 1, 0), (0, 1, 1), (0, 1, 3))), ["pColValuesConsistentWithNPC"]),
-    (balloon(pclr(3) + cmap((0, 1, 0), (0, 1, 1), (3, 1, 2))), ["cMPValuesConsistentWithNC"]),
-    (balloon(pclr(2) + cmap((0, 1, 0), (0, 1, 1))),
-     ["numberOfChannelsConsistentWithColourSpace"]),
+@pytest.mark.parametrize("headerBoxes,expected", [
+    (pclr(3) + cmap((0, 1, 0), (0, 1, 1), (0, 1, 2)), []),
+    (pclr(3) + cmap((0, 1, 0), (0, 1, 1), (0, 1, 3)), ["pColValuesConsistentWithNPC"]),
+    (pclr(3) + cmap((0, 1, 0), (0, 1, 1), (3, 1, 2)), ["cMPValuesConsistentWithNC"]),
+    (pclr(2) + cmap((0, 1, 0), (0, 1, 1)), ["numberOfChannelsConsistentWithColourSpace"]),
 ])
-def test_palette_and_component_mapping(tmp_path, data, expected):
-    assert failed_new_tests(tmp_path, data) == expected
+def test_palette_and_component_mapping(tmp_path, headerBoxes, expected):
+    assert failed_new_tests(tmp_path, balloon(headerBoxes)) == expected
 
 
-@pytest.mark.parametrize("data,expected", [
-    (balloon(box(b"bpcc", bytes([7, 7, 7])), bpc=255), []),
-    (balloon(box(b"bpcc", bytes([7, 7, 7]))), ["bitsPerComponentBoxOnlyIfBPCIs255"]),
-    (balloon(box(b"bpcc", bytes([7, 7])), bpc=255), ["bPCValuesConsistentWithNC"]),
+@pytest.mark.parametrize("headerBoxes,bpc,expected", [
+    (box(b"bpcc", bytes([7, 7, 7])), 255, []),
+    (box(b"bpcc", bytes([7, 7, 7])), None, ["bitsPerComponentBoxOnlyIfBPCIs255"]),
+    (box(b"bpcc", bytes([7, 7])), 255, ["bPCValuesConsistentWithNC"]),
 ])
-def test_bits_per_component(tmp_path, data, expected):
-    assert failed_new_tests(tmp_path, data) == expected
+def test_bits_per_component(tmp_path, headerBoxes, bpc, expected):
+    assert failed_new_tests(tmp_path, balloon(headerBoxes, bpc=bpc)) == expected
 
 
 @pytest.mark.parametrize("ipr,expected", [
