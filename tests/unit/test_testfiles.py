@@ -6,15 +6,18 @@ Tests on jpylyzer test corpus files.
 
 Pre-condition:
 
-Contents of jpylyzer-test-files repo (https://github.com/openpreserve/jpylyzer-test-files)
-are present in sibling directory relative to jpylyzer dir, e.g.:
+The 'files' directory of the jpylyzer-test-files repo
+(https://github.com/openpreserve/jpylyzer-test-files) is either given by the
+JPYLYZER_TEST_FILES environment variable, or present in a sibling directory
+of the jpylyzer dir, e.g.:
 
         |-- jpylyzer/
 home/ --|
         |--jpylyzer-test-files/
 
+If neither is found, all tests in this module are skipped.
+
 TODO:
-- Automatically fetch test files from Github
 - Perhaps read dictionary of tests files from CSV file (to be
   added to test-files repo)
 - Add tests for specific features/oddities (but see previous point)
@@ -39,7 +42,14 @@ JPYLYZER_DIR = os.path.split(os.path.split(SCRIPT_DIR)[0])[0]
 xsdFile = os.path.join(JPYLYZER_DIR, "xsd/jpylyzer-v-2-3.xsd")
 
 # Directory with test files
-testFilesDir = JPYLYZER_DIR.replace("jpylyzer", "jpylyzer-test-files/files")
+testFilesDir = os.environ.get(
+    "JPYLYZER_TEST_FILES",
+    os.path.join(os.path.dirname(JPYLYZER_DIR), "jpylyzer-test-files", "files"))
+
+if not os.path.isdir(testFilesDir):
+    pytest.skip("jpylyzer-test-files corpus not found at " + testFilesDir +
+                " (set JPYLYZER_TEST_FILES to its 'files' directory)",
+                allow_module_level=True)
 
 # All files in test files dir
 testFiles = glob.glob(os.path.join(testFilesDir, '*'))
@@ -152,8 +162,6 @@ validityLookupJHC = {
 ## Excluded in above dict are:
 #
 # - 3 surrogate pair samples
-
-config.INPUT_WRAPPER_FLAG = True
 
 def test_groundtruth_complete():
     """

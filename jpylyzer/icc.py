@@ -36,25 +36,24 @@ class IccValidator(Validator):
 
     def readmultiLocalizedUnicodeType(self, tag):
         """
-        Read multiLocalizedUnicodeType structure from ICC.1:2022-05
-        and return first string, ignoring everything else
+        Read multiLocalizedUnicodeType structure from ICC.1:2022-05 (10.15)
+        and return the string of the first record, ignoring everything else.
+        Returns an empty string (and adds a warning) if the tag has no records
+        or the first record does not point to a string inside the tag.
         """
         noRecords = bc.bytesToUInt(tag[8:12])
-        # Set up list to store string offsets
-        stringOffsets = []
-        offset = 16
-        for _ in range(noRecords):
-            stringOffset = bc.bytesToUInt(tag[offset + 8:offset + 12])
-            stringOffsets.append(stringOffset)
-            offset += 12
+        # First record: language (2), country (2), string length (4), string
+        # offset (4) from the start of the tag
+        stringLength = bc.bytesToUInt(tag[20:24])
+        stringOffset = bc.bytesToUInt(tag[24:28])
 
-        # Only read string from first record, and ignore any subsequent strings
-        if len(stringOffsets) > 1:
-            string = tag[stringOffsets[0]:stringOffsets[1]]
-        else:
-            string = tag[stringOffsets[0]:len(tag)]
+        if noRecords < 1 or stringLength < 0 or stringOffset < 0 or \
+                stringOffset + stringLength > len(tag):
+            self.addWarning("ICC multiLocalizedUnicodeType tag contains no readable string")
+            return ""
 
-        return string
+        # Strings are UTF-16BE
+        return tag[stringOffset:stringOffset + stringLength].decode("utf-16-be", "replace")
 
     # Validator function for ICC profiles
 
@@ -132,19 +131,24 @@ class IccValidator(Validator):
         primaryPlatform = self.boxContents[40:44]
         self.addCharacteristic("primaryPlatform", primaryPlatform)
 
-        # Profile flags (bytes 44-47; only first byte read here as remaining bytes
-        # don't contain any meaningful information)
-        profileFlags = bc.bytesToUnsignedChar(self.boxContents[44:45])
+        # Profile flags (bytes 44-47, ICC.1:2022 7.2.11). ICC numbers bits from the
+        # least significant bit; only bits 0 and 1 are defined
+        profileFlags = bc.bytesToUInt(self.boxContents[44:48])
 
         # Embedded profile (0 if not embedded, 1 if embedded in file)
-        embeddedProfile = bc.getBitValue(profileFlags, 1)
+        embeddedProfile = bc.getBitValueFromRight(profileFlags, 0)
         self.addCharacteristic("embeddedProfile", embeddedProfile)
 
         # Profile cannot be used independently from embedded colour data
         # (1 if true, 0 if false)
-        profileCannotBeUsedIndependently = bc.getBitValue(profileFlags, 2)
+        profileCannotBeUsedIndependently = bc.getBitValueFromRight(profileFlags, 1)
         self.addCharacteristic("profileCannotBeUsedIndependently",
                                profileCannotBeUsedIndependently)
+
+        # Bits 2-15 are reserved by the ICC (bits 16-31 are for CMM vendors)
+        if profileFlags != -9999 and profileFlags & 0xFFFC:
+            self.addWarning("ICC profile flags have reserved bits set (bits 2-15), "
+                            "so the defined flags may not be reliable either")
 
         # Device manufacturer
         deviceManufacturer = self.boxContents[48:52]
@@ -154,25 +158,30 @@ class IccValidator(Validator):
         deviceModel = self.boxContents[52:56]
         self.addCharacteristic("deviceModel", deviceModel)
 
-        # Device attributes (bytes 56-63; only first byte read here as remaining bytes
-        # don't contain any meaningful information)
-        deviceAttributes = bc.bytesToUnsignedChar(self.boxContents[56:57])
+        # Device attributes (bytes 56-63, ICC.1:2022 7.2.14). Bits 0-3 (counted
+        # from the least significant bit) are defined
+        deviceAttributes = bc.bytesToULongLong(self.boxContents[56:64])
 
         # Transparency (1 = transparent; 0 = reflective)
-        transparency = bc.getBitValue(deviceAttributes, 1)
+        transparency = bc.getBitValueFromRight(deviceAttributes, 0)
         self.addCharacteristic("transparency", transparency)
 
         # Glossiness (1 = matte; 0 = glossy)
-        glossiness = bc.getBitValue(deviceAttributes, 2)
+        glossiness = bc.getBitValueFromRight(deviceAttributes, 1)
         self.addCharacteristic("glossiness", glossiness)
 
         # Media polarity (1 = negative; 0 = positive)
-        polarity = bc.getBitValue(deviceAttributes, 3)
+        polarity = bc.getBitValueFromRight(deviceAttributes, 2)
         self.addCharacteristic("polarity", polarity)
 
         # Media colour (1 = black & white; 0 = colour)
-        colour = bc.getBitValue(deviceAttributes, 4)
+        colour = bc.getBitValueFromRight(deviceAttributes, 3)
         self.addCharacteristic("colour", colour)
+
+        # Bits 4-31 are reserved by the ICC (bits 32-63 are for vendors)
+        if deviceAttributes != -9999 and deviceAttributes & 0xFFFFFFF0:
+            self.addWarning("ICC device attributes have reserved bits set (bits 4-31), "
+                            "so the defined attributes may not be reliable either")
 
         # Rendering intent (bytes 64-67, only least-significant 2 bytes used)
         renderingIntent = bc.bytesToUShortInt(self.boxContents[66:68])
@@ -218,6 +227,10 @@ class IccValidator(Validator):
             tagOffset = bc.bytesToUInt(
                 self.boxContents[tagStart + 4:tagStart + 8])
             tagSize = bc.bytesToUInt(self.boxContents[tagStart + 8:tagStart + 12])
+
+            if tagOffset < 0 or tagSize < 0:
+                # Tag table is truncated
+                break
 
             # Add tag signature to list
             tagSignatures.append(tagSignature)

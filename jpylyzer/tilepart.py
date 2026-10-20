@@ -9,6 +9,15 @@ from .validator import Validator
 from .csmarkers import CSMarkerValidator
 
 
+# Markers that ISO/IEC 15444-1 Table A.2 (and ISO/IEC 15444-15) only allow
+# in the main header, or not in a header at all: SOC, SIZ, CAP, PRF, CPF,
+# TLM, PLM, PPM, CRG, EOC
+MARKERS_NOT_ALLOWED_IN_TILE_PART_HEADER = [b'\xff\x4f', b'\xff\x51', b'\xff\x50',
+                                           b'\xff\x56', b'\xff\x59', b'\xff\x55',
+                                           b'\xff\x57', b'\xff\x60', b'\xff\x63',
+                                           b'\xff\xd9']
+
+
 class TilePartValidator(Validator):
     """Validator class for JPEG 2000 tile part
     Note that the 'boxType' variable actually represents
@@ -83,8 +92,12 @@ class TilePartValidator(Validator):
         # loop. Shouldn't happen anymore (although this may not be the most elegant way of handling
         # this)
 
+        # All markers in this tile-part header (after SOT)
+        tilePartHeaderMarkers = []
+
         while marker != b'\xff\x93' and offsetNext != -9999:
             marker, _, segContents, offsetNext = self._getMarkerSegment(offset)
+            tilePartHeaderMarkers.append(marker)
 
             if marker == b'\xff\x52':
                 # COD (coding style default) marker segment
@@ -240,6 +253,15 @@ class TilePartValidator(Validator):
         # Last marker segment must be start-of-data (SOD) marker
         self.testFor("foundSODMarker", marker == b'\xff\x93')
 
+        # Only markers allowed in a tile-part header, and no more than one COD,
+        # QCD and POC (ISO/IEC 15444-1 Table A.2, A.6.1, A.6.4, A.6.6)
+        self.testFor("tilePartHeaderMarkersAllowed",
+                     not set(tilePartHeaderMarkers) &
+                     set(MARKERS_NOT_ALLOWED_IN_TILE_PART_HEADER))
+        self.testFor("maxOneCODTP", tilePartHeaderMarkers.count(b'\xff\x52') <= 1)
+        self.testFor("maxOneQCDTP", tilePartHeaderMarkers.count(b'\xff\x5c') <= 1)
+        self.testFor("maxOnePOCTP", tilePartHeaderMarkers.count(b'\xff\x5f') <= 1)
+
         # Add pltCount and ppptCount value to characteristics
         self.addCharacteristic("pltCount", pltCount)
         self.addCharacteristic("pptCount", pptCount)
@@ -282,10 +304,6 @@ class TilePartValidator(Validator):
             self.testFor(
                 "maxOneCqccPerComponentTP", len(
                     set(cqccValuesTP)) == len(cqccValuesTP))
-
-        # Test if ccoc and cqcc values are consecutive numbers
-        self.testFor("ccocValuesConsecutive", self._consecutive(ccocValuesTP))
-        self.testFor("cqccValuesConsecutive", self._consecutive(cqccValuesTP))
 
         # Position of first byte in next tile
         offsetNextTilePart = self.startOffset + tilePartLength

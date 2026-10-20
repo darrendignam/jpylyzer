@@ -55,8 +55,14 @@ class JP2Validator(Validator):
         # Dummy value
         boxLengthValue = 10
 
+        # Box lengths must be valid and fit in the file; only the last box may
+        # extend to the end of the file (LBox 0), which it does by definition
+        boxLengthsAreValid = True
+
         while byteStart < noBytes and boxLengthValue not in [0, -9999]:
 
+            boxLengthsAreValid = boxLengthsAreValid and self._boxLengthIsValid(
+                byteStart, noBytes, lengthZeroAllowed=True)
             boxLengthValue, boxType, byteEnd, boxContents = self._getBox(byteStart, noBytes)
 
             # Validate current top level box
@@ -85,6 +91,7 @@ class JP2Validator(Validator):
         containsJP2HeaderBox = tagJP2HeaderBox in boxTypes
         containsContiguousCodestreamBox = tagContiguousCodestreamBox in boxTypes
 
+        self.testFor("boxLengthsAreValid", boxLengthsAreValid)
         self.testFor("containsSignatureBox", containsSignatureBox)
         self.testFor("containsFileTypeBox", containsFileTypeBox)
         self.testFor("containsJP2HeaderBox", containsJP2HeaderBox)
@@ -101,6 +108,12 @@ class JP2Validator(Validator):
             self.testFor(
                 "containsIntellectualPropertyBox",
                 containsIntellectualPropertyBox)
+        elif iPR == 0:
+            # No rights information, so no Intellectual Property box
+            # (ISO/IEC 15444-1 Section I.5.3.1)
+            self.testFor(
+                "noIntellectualPropertyBoxIfIPRIsZero",
+                tagIntellectualPropertyBox not in boxTypes)
 
         # Is the first box a Signature Box (ISO/IEC 15444-1 Section I.5.1)?
         try:

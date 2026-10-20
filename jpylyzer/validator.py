@@ -7,9 +7,42 @@ from . import byteconv as bc
 from . import shared
 
 
+class ByteRange:
+    """Read-only window on data[start:stop] that copies only the bytes asked for.
+
+    Slicing an mmap copies, so slicing the contiguous codestream box out of the
+    memory-mapped file copies nearly the whole file. The codestream validators
+    only take small slices and len(), which this class serves straight from the
+    underlying data. Slices are plain bytes, so no buffer export of the memory
+    map is ever created and closing it cannot fail.
+    """
+
+    def __init__(self, data, start, stop):
+        self.data = data
+        self.start, stop, _ = slice(start, stop).indices(len(data))
+        self.length = max(stop - self.start, 0)
+
+    def __len__(self):
+        return self.length
+
+    def __getitem__(self, index):
+        if isinstance(index, slice):
+            start, stop, step = index.indices(self.length)
+            if step != 1:
+                raise ValueError("ByteRange only supports contiguous slices")
+            return self.data[self.start + start:self.start + max(stop, start)]
+        if not -self.length <= index < self.length:
+            raise IndexError("ByteRange index out of range")
+        return self.data[self.start + index % self.length]
+
+
 class Validator:
     """Generic validator class
     """
+
+    # Reserved for markers without marker segment parameters (ISO/IEC 15444-1
+    # Table A.1); readers skip them
+    RESERVED_MARKERS_WITHOUT_PARAMETERS = [bytes([0xFF, code]) for code in range(0x30, 0x40)]
 
     def __init__(self, options, bType, boxContents,
                  startOffset=None, components=None):
@@ -84,16 +117,16 @@ class Validator:
 
     def validate(self):
         """Generic validation function."""
-        try:
-            to_call = getattr(self, "validate_" + self.boxType)
-            to_call()
-        except AttributeError:
+        to_call = getattr(self, "validate_" + self.boxType, None)
+        if to_call is None:
             # Don't think this should ever happen because all known boxes
             # are defined in boxTypeMap and anything not in boxTypeMap should
             # trigger "unknown" box validator function
             msg = "ignoring '" + self.boxType + \
                 "' (validator function not yet implemented)"
             shared.printWarning(msg)
+        else:
+            to_call()
         return self
 
     def _isValid(self):
@@ -151,8 +184,13 @@ class Validator:
         byteEnd = byteStart + boxLengthValue
 
         # Contents of this box as a byte object (i.e. 'DBox' in ISO/IEC 15444-1
-        # Section I.4)
-        boxContents = self.boxContents[byteStart + contentsStartOffset:byteEnd]
+        # Section I.4). The contiguous codestream box is usually nearly the
+        # whole file, so it is read in place rather than copied
+        if boxType == self.boxTagMap['contiguousCodestreamBox']:
+            boxContents = ByteRange(
+                self.boxContents, byteStart + contentsStartOffset, byteEnd)
+        else:
+            boxContents = self.boxContents[byteStart + contentsStartOffset:byteEnd]
 
         return (boxLengthValue, boxType, byteEnd, boxContents)
 
@@ -167,6 +205,8 @@ class Validator:
         # Check if this is a delimiting marker segment
         if marker in [b'\xff\x4f', b'\xff\x93', b'\xff\xd9', b'\xff\x92']:
             # Zero-length markers: SOC, SOD, EOC, EPH
+            length = 0
+        elif marker in self.RESERVED_MARKERS_WITHOUT_PARAMETERS:
             length = 0
         else:
             # Not a delimiting marker, so remainder contains some data
@@ -229,18 +269,28 @@ class Validator:
         FE2 = 000111111100010
         See table A.36 for more details.
 
-        - lpl: lplt/lplm parameter.
-        - offset: the offset (from marker code) to iplt/iplm parameter.
-            For iplt this will be 3 (sizeof(lplt) + sizeof(zplt)),
-            for iplm this will be 4 sizeof(lplm) + sizeof(zplm) + sizeof(nplm)
+        - lpl: offset (from the start of the segment, i.e. lplt/lplm) at which
+            the packet lengths end: lplt for PLT, the end of the current
+            Nplm group for PLM.
+        - offset: the offset (from the start of the segment) of the first
+            packet length. For iplt this is 3 (sizeof(lplt) + sizeof(zplt)),
+            for iplm it is the byte after the group's nplm.
+
+        Returns the list as a string, and a flag that is False if the last
+        packet length is unterminated (its final byte has the MSB set).
         """
         iplt = ''
+        isComplete = True
+        # Don't over-read on bad lplt/lplm
+        end = min(lpl, len(self.boxContents))
         i = offset
-        while i < lpl and i < len(
-                self.boxContents):  # Don't over-read on bad lplt/lplm
+        while i < end:
             ipl_i_len = 1  # number of bytes making up the current ipl(t|m)_i
             while bc.bytesToUnsignedChar(
                     self.boxContents[i + ipl_i_len - 1:i + ipl_i_len]) & 0x80:
+                if i + ipl_i_len >= end:
+                    isComplete = False
+                    break
                 ipl_i_len += 1
 
             # Join all the segments together
@@ -252,7 +302,7 @@ class Validator:
 
             i += ipl_i_len
             iplt += ('{:0' + str(2 * ipl_i_len) + 'X},').format(iplt_i)
-        return iplt[:-1]
+        return iplt[:-1], isComplete
 
     def _consecutive(self, lst):
         """Return True if items in lst are consecutive numbers."""
@@ -265,3 +315,19 @@ class Validator:
         """Return True if all occurrences of value in lst are at contiguous positions."""
         indices_of_value = [i for i in range(len(lst)) if lst[i] == value]
         return self._consecutive(indices_of_value)
+
+    def _boxLengthIsValid(self, byteStart, noBytes, lengthZeroAllowed):
+        """Check the box header that starts at byteStart (ISO/IEC 15444-1
+        Section I.4): LBox is not 2-7, XLBox is at least 16, and the box ends
+        within the noBytes bytes of its parent (or file). LBox 0 (box extends
+        to the end) is only allowed if lengthZeroAllowed."""
+        boxLengthValue = bc.bytesToUInt(self.boxContents[byteStart:byteStart + 4])
+        if boxLengthValue == 0:
+            return lengthZeroAllowed
+        if boxLengthValue == 1:
+            boxLengthValue = bc.bytesToULongLong(
+                self.boxContents[byteStart + 8:byteStart + 16])
+            minimumLength = 16
+        else:
+            minimumLength = 8
+        return minimumLength <= boxLengthValue <= noBytes - byteStart

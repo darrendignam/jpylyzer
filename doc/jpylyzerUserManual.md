@@ -935,7 +935,7 @@ fileTypeBox
 
 |Test name|True if|
 |:--------|:------|
-|boxLengthIsValid|(Size of box – 8) /4 is a whole number (integer)|
+|boxLengthIsValid|Size of box contents is at least 12 bytes (brand, minor version and at least one compatibility field) and a multiple of 4|
 |brandIsValid|*br* equals 0x6a703220 (“jp2 ”) for JP2, or 0x6a706820 (“jph ”)for JPH|
 |minorVersionIsValid|*minV* equals 0|
 |compatibilityListIsValid|Sequence of compatibility (*cL*) fields includes one entry that equals 0x6a703220 (“jp2 ”) for JP2, or 0x6a706820 (“jph ”)for JPH|
@@ -969,6 +969,7 @@ represented as child elements in the properties tree:
 
 |Test name|True if|
 |:--------|:------|
+|subBoxLengthsAreValid|The length (*LBox*, *XLBox*) of each box in this box is valid (not 0, 2-7 or an *XLBox* below 16) and the box does not extend beyond this box|
 |containsImageHeaderBox|Box contains required Image Header box|
 |containsColourSpecificationBox|Box contains required Colour Specification box|
 |containsBitsPerComponentBox|Box contains Bits Per Component Box, which is required if *bPCSign* and *bPCDepth* in Image Header Box equal 1 and 128, respectively (test is skipped otherwise)|
@@ -981,6 +982,14 @@ represented as child elements in the properties tree:
 |noMoreThanOneResolutionBox|Box contains no more than one Resolution box|
 |colourSpecificationBoxesAreContiguous|In case of multiple Colour Specification boxes, they appear contiguously in the JP2 Header box|
 |paletteAndComponentMappingBoxesOnlyTogether|Box contains a Palette box (only if Component Mapping box is present); box contains a Component Mapping box (only if Palette box is present)|
+|bitsPerComponentBoxOnlyIfBPCIs255 (if JP2 Header box contains a Bits Per Component box)|*bPC* field in Image Header box equals 255 (components vary in bit depth)|
+|bPCValuesConsistentWithNC (if JP2 Header box contains a Bits Per Component box)|Bits Per Component box contains one value for each component (*nC*)|
+|cMPValuesConsistentWithNC (if JP2 Header box contains a Component Mapping box)|All *cMP* values are smaller than the number of components (*nC*)|
+|pColValuesConsistentWithNPC (if JP2 Header box contains a Component Mapping box and a Palette box)|All *pCol* values of palette mappings (*mTyp* = 1) are smaller than the number of palette columns (*nPC*)|
+|cNValuesConsistentWithChannels (if JP2 Header box contains a Channel Definition box)|All *cN* values are smaller than the number of channels (number of Component Mapping entries, or *nC* if there is no Component Mapping box)|
+|cNValuesUnique (if JP2 Header box contains a Channel Definition box)|No channel is described more than once|
+|colourChannelsConsistentWithColourSpace (JP2 only, if JP2 Header box contains a Channel Definition box and the colourspace is known)|There is exactly one colour channel (*cTyp* = 0) for each colour of the colourspace, associated with that colour (*cAssoc* 1 to the number of colours)|
+|numberOfChannelsConsistentWithColourSpace (JP2 only, if there is no Channel Definition box and the colourspace is known)|Number of channels is at least the number of colours of the colourspace|
 |noZeroCTypesIfNoColourBox|If file does not contain a Colour Specification Box, no cTyp values (from Channel definition box) shall be equal to 0 (JPH)|
 
 Image Header box (child of JP2 Header box) {#image-header-box}
@@ -1013,7 +1022,7 @@ imageHeaderBox
 |heightIsValid|*height* is within range [1, 2<sup>32</sup> - 1]|
 |widthIsValid|*width* is within range [1, 2<sup>32</sup> - 1]|
 |nCIsValid|*nC* is within range [1, 16384]|
-|bPCIsValid|*bPCDepth* is within range [1,38] OR *bPCSign* equals 255 (in the latter case the bit depth is variable)|
+|bPCIsValid|*bPCDepth* is within range [1,38] OR the *bPC* field equals 255 (in the latter case the bit depth is variable)|
 |cIsValid|*c* equals 7 (“jpeg2000”)|
 |unkCIsValid|*unkC* equals 0 (“no”) or 1 (“yes”)|
 |iPRIsValid|*iPR* equals 0 (“no”) or 1 (“yes”)|
@@ -1115,20 +1124,28 @@ profile is allowed in JP2)!
 |chromaticAdaptationA8|Chromatic adaptation matrix coefficient a<sub>8</sub> (extracted from chromaticAdaptationTag)|
 |tag<sup>\*</sup>|Signature of profile tag (repeated for all tags in the profile)|
 
+The profile flags (*embeddedProfile*, *profileCannotBeUsedIndependently*) and device attributes (*transparency*, *glossiness*, *polarity*, *colour*) are read from the bits that ICC.1:2022 defines, counted from the least significant bit. They are reported as -9999 if the ICC header is too short to contain them. If any bits that the ICC reserves are set, a warning is added, as the defined bits may then not be reliable either.
+
 ### Tests
 
 |Test name|True if|
 |:--------|:------|
 |methIsValid|*meth* equals 1 (enumerated colourspace) or 2 (restricted ICC profile)|
+|boxLengthIsValid (if meth equals “Enumerated” or “Parameterized”)|Size of box contents equals 7 bytes (enumerated) or 10 bytes (parameterized)|
 |precIsValid|*prec* equals 0|
 |approxIsValid|*approx* equals 0|
 |enumCSIsValid (if meth equals “Enumerated”)|*enumCS* equals 16 (“sRGB”), 17 (“greyscale”) or 18 (“sYCC”)|
 |iccSizeIsValid (if meth equals “Restricted ICC”)|Actual size of embedded ICC profile equals value of profileSize field in ICC header|
 |iccPermittedProfileClass (if meth equals “Restricted ICC”)|ICC profile class is “input device” or “display device”[^6]|
 |iccNoLUTBasedProfile (if meth equals “Restricted ICC”)|ICC profile type is not N-component LUT based (which is not allowed in JP2)|
+|iccPermittedColourSpace (if meth equals “Restricted ICC”)|ICC colour space is “GRAY” (monochrome) or “RGB” (three-component matrix-based)|
+|iccRequiredTagsPresent (if meth equals “Restricted ICC”)|ICC profile contains the grey TRC tag (“GRAY”), or the red, green and blue matrix column and TRC tags (“RGB”)|
+|iccPermittedConnectionSpace (if meth equals “Restricted ICC” and colour space is “RGB”)|ICC profile connection space is “XYZ”|
 |colPrimsIsValid|*colPrims* value is defined by ITU-T H.273 / ISO/IEC 23001-8 (JPH)|
 |transfCIsValid|*transfC* value is defined by ITU-T H.273 / ISO/IEC 23001-8 (JPH)|
 |matCoeffsIsValid|*matCoeffs* value is defined by ITU-T H.273 / ISO/IEC 23001-8 (JPH)|
+
+For JP2, only the first Colour Specification box is tested. A JP2 reader ignores any Colour Specification boxes after the first one (ISO/IEC 15444-1 Section I.5.3.3), so their properties are reported, but their tests are left out and a warning is added.
 
 Palette box (child of JP2 Header box) {#palette-box}
 -----------------------------------------
@@ -1148,14 +1165,15 @@ paletteBox
 |nPC|Number of palette columns|
 |bSign<sup>\*</sup>|Indicates whether values created by this palette column are signed or unsigned (repeated for all columns)|
 |bDepth<sup>\*</sup>|Bit depth of values created by this palette column (repeated for all columns)|
-|cP<sup>\*\*</sup>|Value for this entry (repeated for all columns, and for the number of entries)|
+|cP<sup>\*\*</sup>|Value for this entry (repeated for all columns, and for the number of entries). Values follow the *bSign* and *bDepth* of their column. They are only reported if the box length is valid and *nE* is within range|
 
 ### Tests
 
 |Test name|True if|
 |:--------|:------|
-|nEIsValid|*nE* is within range [0,1024]|
+|nEIsValid|*nE* is within range [1,1024]|
 |nPCIsValid|*nPC* is within range [1,255]|
+|boxLengthIsValid|Size of box contents equals 3 + *nPC* + *nE* × (bytes per entry), where each column value takes ceil(*bDepth* / 8) bytes|
 |bDepthIsValid<sup>\*</sup>|*bDepth* is within range [1,38] (repeated for all columns)|
 
 Component Mapping box (child of JP2 Header box) {#component-mapping-box}
@@ -1180,7 +1198,8 @@ componentMappingBox
 
 |Test name|True if|
 |:--------|:------|
-|cMPIsValid|*cMP* is within range [0,16384]|
+|boxLengthIsValid|Size of box contents is a non-zero multiple of 4 bytes|
+|cMPIsValid|*cMP* is within range [0,16383]|
 |mTypIsValid<sup>\*</sup>|*mTyp* is within range [0,1] (repeated for all channels)|
 |pColIsValid<sup>\*</sup>|*pCol* is 0 if *mTyp* is 0 (repeated for all channels)|
 
@@ -1239,6 +1258,7 @@ represented as child elements in the properties tree:
 
 |Test name|True if|
 |:--------|:------|
+|subBoxLengthsAreValid|The length (*LBox*, *XLBox*) of each box in this box is valid (not 0, 2-7 or an *XLBox* below 16) and the box does not extend beyond this box|
 |containsCaptureOrDisplayResolutionBox|Box contains either a Capture Resolution box or a Default Display Resolution box, or both|
 |noMoreThanOneCaptureResolutionBox|Box contains no more than one Capture Resolution box|
 |noMoreThanOneDisplayResolutionBox|Box contains no more than one Default Display Resolution box|
@@ -1272,6 +1292,8 @@ pixels per inch, which are calculated from these values.
 |hRescInPixelsPerMeter|Horizontal grid resolution, expressed in pixels per meter[^8]|
 |vRescInPixelsPerInch|Vertical grid resolution, expressed in pixels per inch[^9]|
 |hRescInPixelsPerInch|Horizontal grid resolution, expressed in pixels per inch[^10]|
+
+The four derived resolution values are reported as -9999 if a numerator, denominator or exponent they depend on is out of range (for example a zero denominator).
 
 ### Tests
 
@@ -1314,6 +1336,8 @@ pixels per inch, which are calculated from these values.
 |hResdInPixelsPerMeter|Horizontal grid resolution, expressed in pixels per meter[^12]|
 |vResdInPixelsPerInch|Vertical grid resolution, expressed in pixels per inch[^13]|
 |hResdInPixelsPerInch|Horizontal grid resolution, expressed in pixels per inch[^14]|
+
+The four derived resolution values are reported as -9999 if a numerator, denominator or exponent they depend on is out of range (for example a zero denominator).
 
 ### Tests
 
@@ -1437,6 +1461,7 @@ as child elements in the properties tree:
 
 |Test name|True if|
 |:--------|:------|
+|subBoxLengthsAreValid|The length (*LBox*, *XLBox*) of each box in this box is valid (not 0, 2-7 or an *XLBox* below 16) and the box does not extend beyond this box|
 |containsOneListBox|Box contains exactly one UUID List box|
 |containsOneURLBox|Box contains exactly one Data Entry URL box|
 
@@ -1626,11 +1651,13 @@ performs a number of tests to verify the consistency between these two.
 
 |Test name|True if|
 |:--------|:------|
+|boxLengthsAreValid|The length (*LBox*, *XLBox*) of each top-level box is valid (not 2-7, and an *XLBox* not below 16), each box ends within the file, and there are no trailing bytes too short to form a box|
 |containsSignatureBox|File root contains a JPEG 2000 Signature box|
 |containsFileTypeBox|File root contains a File Type box|
 |containsJP2HeaderBox|File root contains a JP2 Header box|
 |containsContiguousCodestreamBox|File root contains a Contiguous Codestream box|
 |containsIntellectualPropertyBox|File root contains an Intellectual Property box, which is required if *iPR* field in Image Header Box equals 1 (test is skipped otherwise)|
+|noIntellectualPropertyBoxIfIPRIsZero|File does not contain an Intellectual Property box if *iPR* in Image Header box equals 0|
 |firstBoxIsSignatureBox|First box is JPEG 2000 Signature box|
 |secondBoxIsFileTypeBox|Second box is File Type box|
 |locationJP2HeaderBoxIsValid|JP2 Header box is located after File Type Box and before (first) Contiguous Codestream box|
@@ -1867,15 +1894,24 @@ is given by the following 2 derived properties (these are always reported, irres
 |foundCAPMarker|Codestream main header contains Extended Capabilities (CAP) marker segment if second most significant bit of *rsiz* equals 1|
 |foundCODMarker|Codestream main header contains coding style default (COD) marker segment|
 |foundQCDMarker|Codestream main header contains quantization default (QCD) marker segment|
-|foundExpectedNumberOfTiles|Number of encountered tiles is consistent with expected number of tiles (as calculated from [SIZ marker](#siz-marker))|
-|foundExpectedNumberOfTileParts|For all tiles, number of encountered tile parts is consistent with expected number of tile parts (values of *tnsot* from [SOT marker](#sot-marker))|
+|foundExpectedNumberOfTiles|Encountered tiles are consistent with the tile grid (as calculated from [SIZ marker](#siz-marker)): every tile that contains image samples is present, and no tile index is outside the grid. Tiles whose tile-components are all empty may be left out|
+|foundExpectedNumberOfTileParts|For all tiles with a non-zero *tnsot* value in any [SOT marker](#sot-marker), number of encountered tile parts is consistent with that value|
+|tilePartIndicesConsistencyCheck|For each tile, the *tpsot* values of its tile parts are 0, 1, 2, ... in the order in which the tile parts appear in the codestream|
+|tnsotConsistencyCheck|For each tile, all non-zero *tnsot* values are the same|
+|psotZeroOnlyInLastTilePart (if a tile part has *psot* = 0)|No tile part follows the tile part with *psot* = 0, which extends to the end of the codestream|
+|foundEOCAfterLastTilePart (if no tile part has *psot* = 0)|The end-of-codestream marker directly follows the last tile part|
 |maxOneCcocPerComponentMain|No more than one *ccoc* value for each component in main header (only reported if codestream contains any COC marker segments)|
 |maxOneCqccPerComponentMain|No more than one *cqcc* value for each component in main header (only reported if codestream contains any QCC marker segments)|
-|ccocValuesConsecutive|*ccoc* values are consecutive numbers (e.g. 0, 1, 2, etc.)|
-|cqccValuesConsecutive|*cqcc* values are consecutive numbers (e.g. 0, 1, 2, etc.)|
 |tilePartsTLMConsistencyCheck|Number of tile parts indicated by TLM markers equals actual number of tile parts found (only reported if codestream contains any TLM marker segments)|
 |tilePartLengthsConsistencyCheck|Tile part lengths defined by ptlm values in TLM marker segments correspond to psot values in SOT marker segments (only reported if codestream contains any TLM marker segments)|
+|ztlmValuesUnique|Each TLM marker segment has a different *ztlm* index (only reported if codestream contains any TLM marker segments)|
+|tileIndicesTLMConsistencyCheck|Tile indices defined by TLM marker segments, taken in order of *ztlm*, equal the *isot* values in the SOT marker segments; for TLM marker segments with *st* = 0, tile part *i* belongs to tile *i* (only reported if codestream contains any TLM marker segments)|
 |foundEOCMarker|Last 2 bytes in codestream constitute an end of codestream (EOC) marker segment|
+|mainHeaderMarkersAllowed|Codestream main header does not contain markers that are not allowed there (SOC or SIZ after the first, PLT, PPT, SOD or EOC)|
+|maxOneCODMain|Codestream main header contains no more than one coding style default (COD) marker segment|
+|maxOneQCDMain|Codestream main header contains no more than one quantization default (QCD) marker segment|
+|maxOnePOCMain|Codestream main header contains no more than one progression order change (POC) marker segment|
+|noPPTMarkersWithPPM (if codestream contains PPM marker segments)|No tile part header contains packed packet headers (PPT) marker segments|
 
 Image and tile size (SIZ) marker segment (child of Contiguous Codestream box) {#siz-marker}
 ---------------------------------------------------------------------------------
@@ -1920,6 +1956,9 @@ siz
 |yTsizIsValid|*yTsiz* is within range [1,2<sup>32</sup> - 1]|
 |xTOsizIsValid|*xTOsiz* is within range [0,2<sup>32</sup> - 2]|
 |yTOsizIsValid|*yTOsiz* is within range [0,2<sup>32</sup> - 2]|
+|imageAreaIsValid|*xOsiz* < *xsiz* and *yOsiz* < *ysiz* (image area is not empty)|
+|tileOffsetIsValid|*xTOsiz* <= *xOsiz* and *yTOsiz* <= *yOsiz* (tile grid starts at or before the image area)|
+|firstTileOverlapsImageArea|*xTsiz* + *xTOsiz* > *xOsiz* and *yTsiz* + *yTOsiz* > *yOsiz*|
 |csizIsValid|*csiz* is within range [1,16384]|
 |lsizConsistentWithCsiz|*lsiz* equals 38 + 3\**csiz*|
 |ssizIsValid<sup>\*</sup>|*ssizDepth* is within range [1,38] (repeated for all components)|
@@ -1945,8 +1984,8 @@ cod
 |layers|Number of layers|
 |multipleComponentTransformation|Indicates use of multiple component transformation (“yes”/“no”)|
 |levels|Number of decomposition levels|
-|codeBlockWidth|Code block width|
-|codeBlockHeight|Code block height|
+|codeBlockWidth|Code block width (-9999 if the segment is too short to contain it, or its exponent is outside the range [2,10])|
+|codeBlockHeight|Code block height (-9999 if the segment is too short to contain it, or its exponent is outside the range [2,10])|
 |codingBypass|Indicates use of coding bypass (“yes”/“no”)|
 |resetOnBoundaries|Indicates reset of context probabilities on coding pass boundaries (“yes”/“no”) (does not apply to High Throughput code blocks)|
 |termOnEachPass|Indicates termination on each coding pass (“yes”/“no”)|
@@ -1989,8 +2028,8 @@ coc
 |ccoc|Index of the component to which this marker segment relates|
 |precincts|Indicates default or user-defined precinct size (“default”/“user defined”)|
 |levels|Number of decomposition levels|
-|codeBlockWidth|Code block width|
-|codeBlockHeight|Code block height|
+|codeBlockWidth|Code block width (-9999 if the segment is too short to contain it, or its exponent is outside the range [2,10])|
+|codeBlockHeight|Code block height (-9999 if the segment is too short to contain it, or its exponent is outside the range [2,10])|
 |codingBypass|Indicates use of coding bypass (“yes”/“no”)|
 |resetOnBoundaries|Indicates reset of context probabilities on coding pass boundaries (“yes”/“no”)|
 |termOnEachPass|Indicates termination on each coding pass (“yes”/“no”)|
@@ -2006,7 +2045,7 @@ coc
 |Test name|True if|
 |:--------|:------|
 |lcocIsValid|*lcoc* is within range [9,43]|
-|ccocIsValid|*ccoc* is within range [0,255] (*csiz* < 257) or [0,16383] (*csiz* >= 257)|
+|ccocIsValid|*ccoc* refers to an existing component: within range [0, *csiz* - 1]|
 |levelsIsValid|*levels* is within range [0,32]|
 |lcocConsistencyCheck|*lcoc* value is consistent with *levels*, *csiz* and *precincts* (Eq A-3 in ISO/IEC 15444-1)|
 |codeBlockWidthExponentIsValid|*codeBlockWidthExponent* is within range [2,10]|
@@ -2036,8 +2075,8 @@ rgn
 
 |Test name|True if|
 |:--------|:------|
-|lrgnIsValid|*lrgn* is within range [5,6]|
-|crgnIsValid|*crgn* is within range [0,255] (*csiz* < 257) or [0,16383] (*csiz* >= 257)|
+|lrgnIsValid|*lrgn* equals 5 (*csiz* < 257) or 6 (*csiz* >= 257)|
+|crgnIsValid|*crgn* refers to an existing component: within range [0, *csiz* - 1]|
 |roiStyleIsValid|*roiStyle* equals 0 (“Implicit ROI (maximum shift)”)|
 |roiShiftIsValid|*roiShift* is within range [0,255] (JP2, J2C) or [0,37] (JPH, JHC)|
 
@@ -2055,8 +2094,8 @@ qcd
 |lqcd|Length of QCD marker segment in bytes|
 |qStyle|Quantization style for all components|
 |guardBits|Number of guard bits|
-|epsilon<sup>\*</sup>|- If *qStyle* equals 0 (“no quantization”): *Epsilon* exponent in Eq E-5 of ISO/IEC 15444-1 (repeated for all decomposition levels; order: low to high)<br/>- If *qStyle* equals 1 (“scalar derived”): *Epsilon* exponent in Eq E-3 of ISO/IEC 15444-1<br/>- If *qStyle* equals 2 (“scalar expounded”): *Epsilon* exponent in Eq E-3 of ISO/IEC 15444-1 (repeated for all decomposition levels; order: low to high)|
-|mu<sup>\*</sup>|- If *qStyle* equals 1 (“scalar derived”): *mu* constant in Eq E-3 of ISO/IEC 15444-1<br/>- if *qStyle* equals 2 (“scalar expounded”) : *mu* constant in Eq E-3 of ISO/IEC 15444-1 (repeated for all decomposition levels; order: low to high)|
+|epsilon<sup>\*</sup>|- If *qStyle* equals 0 (“no quantization”): *Epsilon* exponent in Eq E-5 of ISO/IEC 15444-1 (one value per subband, 3 × (number of decomposition levels) + 1, in codestream order: *N<sub>L</sub>LL*, then *HL*, *LH*, *HH* for each decomposition level from *N<sub>L</sub>* down to 1)<br/>- If *qStyle* equals 1 (“scalar derived”): *Epsilon* exponent in Eq E-3 of ISO/IEC 15444-1<br/>- If *qStyle* equals 2 (“scalar expounded”): *Epsilon* exponent in Eq E-3 of ISO/IEC 15444-1 (one value per subband, 3 × (number of decomposition levels) + 1, in codestream order: *N<sub>L</sub>LL*, then *HL*, *LH*, *HH* for each decomposition level from *N<sub>L</sub>* down to 1)|
+|mu<sup>\*</sup>|- If *qStyle* equals 1 (“scalar derived”): *mu* constant in Eq E-3 of ISO/IEC 15444-1<br/>- if *qStyle* equals 2 (“scalar expounded”) : *mu* constant in Eq E-3 of ISO/IEC 15444-1 (one value per subband, 3 × (number of decomposition levels) + 1, in codestream order: *N<sub>L</sub>LL*, then *HL*, *LH*, *HH* for each decomposition level from *N<sub>L</sub>* down to 1)|
 
 ### Tests
 
@@ -2064,6 +2103,7 @@ qcd
 |:--------|:------|
 |lqcdIsValid|*lqcd* is within range [4,197]|
 |qStyleIsValid|*qStyle* equals 0 (“no quantization”), 1 (“scalar derived”), or 2 (“scalar expounded”)|
+|lqcdConsistentWithQStyle|*lqcd* matches *qStyle* (Eq A-4 of ISO/IEC 15444-1): one byte per subband for “no quantization”, a single 2-byte value for “scalar derived”, two bytes per subband for “scalar expounded”, with 3 × (number of decomposition levels) + 1 subbands|
 
 Quantization component (QCC) marker segment {#qcc-marker}
 ------------------------------------------------
@@ -2080,15 +2120,17 @@ qcc
 |cqcc|Index of the component to which this marker segment relates|
 |qStyle|Quantization style for all components|
 |guardBits|Number of guard bits|
-|epsilon<sup>\*</sup>|- If *qStyle* equals 0 (“no quantization”): *Epsilon* exponent in Eq E-5 of ISO/IEC 15444-1 (repeated for all decomposition levels; order: low to high)<br/>- If *qStyle* equals 1 (“scalar derived”): *Epsilon* exponent in Eq E-3 of ISO/IEC 15444-1<br/>- If *qStyle* equals 2 (“scalar expounded”): *Epsilon* exponent in Eq E-3 of ISO/IEC 15444-1 (repeated for all decomposition levels; order: low to high)|
-|mu<sup>\*</sup>|- If *qStyle* equals 1 (“scalar derived”): *mu* constant in Eq E-3 of ISO/IEC 15444-1<br/>- if *qStyle* equals 2 (“scalar expounded”) : *mu* constant in Eq E-3 of ISO/IEC 15444-1 (repeated for all decomposition levels; order: low to high)|
+|epsilon<sup>\*</sup>|- If *qStyle* equals 0 (“no quantization”): *Epsilon* exponent in Eq E-5 of ISO/IEC 15444-1 (one value per subband, 3 × (number of decomposition levels) + 1, in codestream order: *N<sub>L</sub>LL*, then *HL*, *LH*, *HH* for each decomposition level from *N<sub>L</sub>* down to 1)<br/>- If *qStyle* equals 1 (“scalar derived”): *Epsilon* exponent in Eq E-3 of ISO/IEC 15444-1<br/>- If *qStyle* equals 2 (“scalar expounded”): *Epsilon* exponent in Eq E-3 of ISO/IEC 15444-1 (one value per subband, 3 × (number of decomposition levels) + 1, in codestream order: *N<sub>L</sub>LL*, then *HL*, *LH*, *HH* for each decomposition level from *N<sub>L</sub>* down to 1)|
+|mu<sup>\*</sup>|- If *qStyle* equals 1 (“scalar derived”): *mu* constant in Eq E-3 of ISO/IEC 15444-1<br/>- if *qStyle* equals 2 (“scalar expounded”) : *mu* constant in Eq E-3 of ISO/IEC 15444-1 (one value per subband, 3 × (number of decomposition levels) + 1, in codestream order: *N<sub>L</sub>LL*, then *HL*, *LH*, *HH* for each decomposition level from *N<sub>L</sub>* down to 1)|
 
 ### Tests
 
 |Test name|True if|
 |:--------|:------|
 |lqccIsValid|*lqcc* is within range [5,199]|
+|cqccIsValid|*cqcc* refers to an existing component: within range [0, *csiz* - 1]|
 |qStyleIsValid|*qStyle* equals 0 (“no quantization”), 1 (“scalar derived”), or 2 (“scalar expounded”)|
+|lqccConsistentWithQStyle|*lqcc* matches *qStyle* (Eq A-5 of ISO/IEC 15444-1): one byte per subband for “no quantization”, a single 2-byte value for “scalar derived”, two bytes per subband for “scalar expounded”, with 3 × (number of decomposition levels) + 1 subbands|
 
 Progression order change (POC) marker segment {#poc-marker}
 ------------------------------------------------
@@ -2113,7 +2155,7 @@ poc
 
 |Test name|True if|
 |:--------|:------|
-|lpocIsValid|*lpoc* is within range [9,65535]|
+|lpocIsValid|*lpoc* is within range [9,65535] (*csiz* < 257) or [11,65535] (*csiz* >= 257), and (*lpoc* - 2) is a multiple of 7 (*csiz* < 257) or 9 (*csiz* >= 257)|
 |rspocIsValid<sup>\*</sup>|*rspoc* is within range [0,32] (repeated for all progression order changes)|
 |cspocIsValid<sup>\*</sup>|*cspoc* is within range [0,255] (*csiz* < 257) or [0,16383] (*csiz >= 257) (repeated for all progression order changes)|
 |lyepocIsValid<sup>\*</sup>|*lyepoc* is within range [1,65535] (repeated for all progression order changes)|
@@ -2140,7 +2182,7 @@ crg
 
 |Test name|True if|
 |:--------|:------|
-|lcrgIsValid|*lcrg* is within range [6,65534]|
+|lcrgIsValid|*lcrg* equals 2 + 4 × *csiz*|
 |xcrgIsValid<sup>\*</sup>|*xcrg* is within range [0,65535] (repeated for all components)|
 |ycrgIsValid<sup>\*</sup>|*ycrg* is within range [0,65535] (repeated for all components)|
 
@@ -2193,7 +2235,7 @@ cap
 
 |Test name|True if|
 |:--------|:------|
-|lcapIsValid|Number of *pcapPart* entries equals (*lcap* - 6)/2|
+|lcapIsValid|*pcap* could be read, and the number of *pcapPart* entries equals (*lcap* - 6)/2|
 |pcap15IsValid|15th most significant bit of *pcap* equals 1 (JPH, JHC)|
 
 Profile (PRF) marker segment {#prf-marker}
@@ -2208,7 +2250,7 @@ prf
 |Property|Description|
 |:-------|:----------|
 |lprf|Length of PRF marker segment in bytes|
-|PRFnum|Profile number|
+|PRFnum|Profile number (-9999 if it does not fit in 64 bits)|
 
 ### Tests
 
@@ -2230,7 +2272,7 @@ cpf
 |Property|Description|
 |:-------|:----------|
 |lcpf|Length of CPF marker segment in bytes|
-|CPFnum|Profile number|
+|CPFnum|Profile number (-9999 if it does not fit in 64 bits)|
 
 ### Tests
 
@@ -2285,10 +2327,12 @@ is given by the following 2 derived properties (these are always reported, irres
 |RGNAllowed|RGN marker is allowed in this tile part (only allowed in first tile-part of a tile)|
 |maxOneCcocPerComponentTP|No more than one *ccoc* value for each component in tile-part header (only reported if codestream contains any COC marker segments)|
 |maxOneCqccPerComponentTP|No more than one *cqcc* value for each component in tile-part header (only reported if codestream contains any QCC marker segments)|
-|ccocValuesConsecutive|*ccoc* values are consecutive numbers (e.g. 0, 1, 2, etc.)|
-|cqccValuesConsecutive|*cqcc* values are consecutive numbers (e.g. 0, 1, 2, etc.)|
 |foundNextTilePartOrEOC|Tile part start offset + *tilePartLength* points to either start of new tile or EOC marker (useful for detecting within-codestream byte corruption)|
 |foundSODMarker|Last marker segment of tile part is a start-of-data (SOD) marker|
+|tilePartHeaderMarkersAllowed|Tile part header does not contain markers that are only allowed in the main header (SIZ, CAP, PRF, CPF, TLM, PLM, PPM, CRG), or SOC or EOC|
+|maxOneCODTP|Tile part header contains no more than one coding style default (COD) marker segment|
+|maxOneQCDTP|Tile part header contains no more than one quantization default (QCD) marker segment|
+|maxOnePOCTP|Tile part header contains no more than one progression order change (POC) marker segment|
 
 Start of tile part (SOT) marker segment (child of tile part) {#sot-marker}
 -----------------------------------------------------------------
@@ -2378,15 +2422,15 @@ plm
 |:-------|:----------|
 |lplm|Length of PLM marker segment in bytes|
 |zplm|PLM marker segment index|
-|nplm|Number of bytes of Iplm information for the ith tile-part|
-|iplm|Comma separated list of packet length  values (as hexadecimal strings)|
+|nplm|Number of bytes of Iplm information for the ith tile-part (repeated for each tile-part in the segment)|
+|iplm|Comma separated list of packet length values (as hexadecimal strings) of the ith tile-part (repeated for each tile-part in the segment)|
 
 ### Tests
 
 |Test name|True if|
 |:--------|:------|
-|||
-|||
+|nplmIsValid|The *Iplm* bytes announced by *nplm* fit in the marker segment (repeated for each tile-part)|
+|iplmIsValid|Last *iplm* value of the tile-part is terminated (its final byte has the most significant bit unset) (repeated for each tile-part)|
 
 Packed packet headers, main header (PPM) marker segment {#ppm-marker}
 ------------------------------------------------------------
@@ -2423,15 +2467,13 @@ plt
 |:-------|:----------|
 |lplt|Length of PLT marker segment in bytes|
 |zplt|PLT marker segment index|
-|nplm|Number of bytes of Iplm information for the ith tile-part|
 |iplt|Comma separated list of packet length values (as hexadecimal strings)|
 
 ### Tests
 
 |Test name|True if|
 |:--------|:------|
-|||
-|||
+|ipltIsValid|Last *iplt* value is terminated (its final byte has the most significant bit unset)|
 
 Packed packet headers, tile-part header (PPT) marker segment {#ppt-marker}
 -----------------------------------------------------------------

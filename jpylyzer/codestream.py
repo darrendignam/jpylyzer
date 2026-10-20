@@ -10,6 +10,12 @@ from .tilepart import TilePartValidator
 from .csmarkers import CSMarkerValidator
 
 
+# Markers that ISO/IEC 15444-1 Table A.2 (and ISO/IEC 15444-15) do not
+# allow in the main header after SIZ: SOC, SIZ, PLT, PPT, SOD, EOC
+MARKERS_NOT_ALLOWED_IN_MAIN_HEADER = [b'\xff\x4f', b'\xff\x51', b'\xff\x58',
+                                      b'\xff\x61', b'\xff\x93', b'\xff\xd9']
+
+
 class CSValidator(Validator):
     """Validator class for JPEG 2000 codestream
     """
@@ -42,6 +48,53 @@ class CSValidator(Validator):
         self.bTypeString = bType
 
     # Validator function for JPEG 2000 codestream
+
+    def _startOfData(self, offset):
+        """Offset of the first byte after the SOD marker of the tile-part that
+        starts at offset, or the end of the codestream if there is no SOD."""
+        offset += 12
+        while offset < len(self.boxContents):
+            marker, _, _, offsetNext = self._getMarkerSegment(offset)
+            if marker == b'\xff\x93':
+                return offset + 2
+            if offsetNext <= offset:
+                break
+            offset = offsetNext
+        return len(self.boxContents)
+
+    def _tilesWithSamples(self, numberOfTiles):
+        """Indices of the tiles that have at least one non-empty tile-component
+        (ISO/IEC 15444-1 Equations B-7 to B-12). Falls back to all tiles if
+        the SIZ values cannot be used or give an empty image area."""
+        siz = self.characteristics.find('siz')
+        allTiles = set(range(numberOfTiles))
+        if siz is None:
+            return allTiles
+        names = ['xsiz', 'ysiz', 'xOsiz', 'yOsiz', 'xTsiz', 'yTsiz', 'xTOsiz', 'yTOsiz']
+        xsiz, ysiz, xOsiz, yOsiz, xTsiz, yTsiz, xTOsiz, yTOsiz = [
+            siz.findElementText(name) for name in names]
+        separations = list(zip(siz.findAllText('xRsiz'), siz.findAllText('yRsiz')))
+        values = [xsiz, ysiz, xOsiz, yOsiz, xTsiz, yTsiz, xTOsiz, yTOsiz]
+        if (not separations or any(not isinstance(v, int) or v < 0 for v in values)
+                or xTsiz == 0 or yTsiz == 0 or xsiz <= xTOsiz
+                or xOsiz >= xsiz or yOsiz >= ysiz
+                or any(not isinstance(r, int) or r <= 0 for pair in separations for r in pair)):
+            return allTiles
+
+        tilesX = -(-(xsiz - xTOsiz) // xTsiz)
+        tilesWithSamples = set()
+        for tile in allTiles:
+            p, q = tile % tilesX, tile // tilesX
+            tx0 = max(xTOsiz + p * xTsiz, xOsiz)
+            tx1 = min(xTOsiz + (p + 1) * xTsiz, xsiz)
+            ty0 = max(yTOsiz + q * yTsiz, yOsiz)
+            ty1 = min(yTOsiz + (q + 1) * yTsiz, ysiz)
+            # Ceiling division: tcx0 = ceil(tx0 / XRsiz) etc.
+            if any(-(-tx1 // xRsiz) > -(-tx0 // xRsiz) and
+                   -(-ty1 // yRsiz) > -(-ty0 // yRsiz)
+                   for xRsiz, yRsiz in separations):
+                tilesWithSamples.add(tile)
+        return tilesWithSamples
 
     def validate_codestream(self):
         """Validate JPEG 2000 codestream"""
@@ -98,8 +151,12 @@ class CSValidator(Validator):
             foundCODMarker = False
             foundQCDMarker = False
 
+            # All markers in the main header (after SIZ)
+            mainHeaderMarkers = []
+
             while marker != b'\xff\x90' and offsetNext != -9999:
                 marker, _, segContents, offsetNext = self._getMarkerSegment(offset)
+                mainHeaderMarkers.append(marker)
 
                 if marker == b'\xff\x52':
                     # COD (coding style default) marker segment
@@ -345,12 +402,21 @@ class CSValidator(Validator):
             self.testFor("foundCODMarker", foundCODMarker)
             self.testFor("foundQCDMarker", foundQCDMarker)
 
+            # Only markers allowed in the main header, and no more than one COD,
+            # QCD and POC (ISO/IEC 15444-1 Table A.2, A.6.1, A.6.4, A.6.6)
+            self.testFor("mainHeaderMarkersAllowed",
+                         not set(mainHeaderMarkers) & set(MARKERS_NOT_ALLOWED_IN_MAIN_HEADER))
+            self.testFor("maxOneCODMain", mainHeaderMarkers.count(b'\xff\x52') <= 1)
+            self.testFor("maxOneQCDMain", mainHeaderMarkers.count(b'\xff\x5c') <= 1)
+            self.testFor("maxOnePOCMain", mainHeaderMarkers.count(b'\xff\x5f') <= 1)
+
             # Test for presence of CAP marker if rsiz indicates capabilities that
             # are defined there
             rsiz = self.characteristics.findElementText(
                 'siz/rsiz')
-            # Two most significant bits of rsiz indicate CAP marker use
-            if (rsiz >> 14) & 15 == 1:
+            # Bit 14 of rsiz indicates CAP marker use, whether or not bit 15
+            # (Part 2 extensions) is also set (ISO/IEC 15444-1 Table A.10)
+            if rsiz >= 0 and rsiz & 0x4000:
                 self.testFor("foundCAPMarker", foundCAPMarker)
 
             # Remainder of codestream is a sequence of tile parts, followed by one
@@ -369,8 +435,8 @@ class CSValidator(Validator):
             # (can't find this  anywhere the standard though)
             numberOfTilesExpected = min(numberOfTilesExpected, 65535)
 
-            # Create list with one entry for each tile
-            tileIndices = []
+            # Set of the indices of all tiles found
+            tileIndices = set()
 
             # Dictionary that contains expected number of tile parts for each
             # tile
@@ -382,6 +448,15 @@ class CSValidator(Validator):
             # Create entry for each tile part and initialise value at 0
             for i in range(numberOfTilesExpected):
                 tilePartsPerTileFound[i] = 0
+
+            # Tile-part indices must be 0, 1, 2, ... for each tile in codestream
+            # order, and all non-zero tnsot values of a tile must be the same
+            # (ISO/IEC 15444-1 Section A.4.2)
+            tilePartIndicesInOrder = True
+            tnsotValuesPerTile = {}
+
+            # Only the last tile-part in the codestream may have psot = 0
+            foundPsotZero = False
 
             # Create sub-elements to store tile-part characteristics, tests and warnings
             tilePartCharacteristics = ET.Element('tileParts')
@@ -407,45 +482,78 @@ class CSValidator(Validator):
                     tilePartWarnings.appendIfNotEmpty(warningsTilePart)
                     tileIndex = characteristicsTilePart.findElementText(
                         'sot/isot')
+                    tilePartIndex = characteristicsTilePart.findElementText(
+                        'sot/tpsot')
                     tilePartsOfTile = characteristicsTilePart.findElementText(
                         'sot/tnsot')
-                    # Add tileIndex to tileIndices, if it doesn't exist already
-                    if tileIndex not in tileIndices:
-                        tileIndices.append(tileIndex)
+                    tileIndices.add(tileIndex)
                     # Expected number of tile-parts for each tile to dictionary
                     if tilePartsOfTile != 0:
                         tilePartsPerTileExpected[tileIndex] = tilePartsOfTile
+                        tnsotValuesPerTile.setdefault(tileIndex, set()).add(tilePartsOfTile)
+
+                    if tilePartIndex != tilePartsPerTileFound.get(tileIndex, 0):
+                        tilePartIndicesInOrder = False
 
                     # Increase found number of tile-parts for this tile by 1
                     try:
                         tilePartsPerTileFound[
                             tileIndex] = tilePartsPerTileFound[tileIndex] + 1
                     except KeyError:
-                        # Get the f**k out of here if tileIndex is not in
-                        # tilePartsPerTileFound (e.g. because the isot field is
-                        # damaged)
+                        # Tile index outside the tile grid (reported by
+                        # foundExpectedNumberOfTiles): the remaining tile-parts
+                        # cannot be trusted either
                         break
+
                     if offsetNext != offset:
                         offset = offsetNext
                     else:
-                        # offsetNext same as offset: this happens if image only contains
-                        # one single tile-part (psot=0), in which case we break out of
-                        # this loop
+                        # offsetNext same as offset: psot is 0, so this tile-part
+                        # extends to the EOC marker
+                        foundPsotZero = True
                         break
 
-            # Length of tileIndices must equal numberOfTilesExpected
-            self.testFor("foundExpectedNumberOfTiles", len(
-                tileIndices) == numberOfTilesExpected)
+            # Every tile with samples must be present, and every tile found must
+            # be in the tile grid. Tiles whose tile-components are all empty
+            # carry no data and may be left out (e.g. conformance codestream
+            # b2_mono.j2c of ISO/IEC 15444-4)
+            self.testFor("foundExpectedNumberOfTiles",
+                         self._tilesWithSamples(numberOfTilesExpected) <= tileIndices
+                         <= set(range(numberOfTilesExpected)))
 
-            # Found numbers of tile	parts per tile must match expected
+            self.testFor("tilePartIndicesConsistencyCheck", tilePartIndicesInOrder)
+            self.testFor("tnsotConsistencyCheck",
+                         all(len(values) == 1 for values in tnsotValuesPerTile.values()))
+
+            if foundPsotZero:
+                # No other tile-part may follow. Marker code 0xFF90 cannot occur
+                # in packet headers or coded data (ISO/IEC 15444-1 Annex B and D),
+                # so a SOT marker after the start of the bit stream means one does
+                self.testFor("psotZeroOnlyInLastTilePart",
+                             self.boxContents[self._startOfData(offset):length - 2]
+                             .find(b'\xff\x90') == -1)
+            else:
+                # EOC must directly follow the last tile-part (ISO/IEC 15444-1
+                # Section A.4.4: EOC shall be the last marker in a codestream)
+                self.testFor("foundEOCAfterLastTilePart", offset == length - 2)
+
+            # Found numbers of tile parts must match expected for every tile whose
+            # tnsot is not 0 (0: number of tile-parts not given)
             if tilePartsPerTileExpected:
                 self.testFor("foundExpectedNumberOfTileParts",
-                             tilePartsPerTileExpected == tilePartsPerTileFound)
+                             all(tilePartsPerTileFound.get(tile) == count
+                                 for tile, count in tilePartsPerTileExpected.items()))
 
             # Add tile-part tests, characteristics and warnings to tree
             self.tests.appendIfNotEmpty(tilePartTests)
             self.characteristics.append(tilePartCharacteristics)
             self.warnings.appendIfNotEmpty(tilePartWarnings)
+
+            # PPM and PPT marker segments shall not both be used (ISO/IEC 15444-1
+            # Sections A.7.4, A.7.5)
+            if ppmCount > 0:
+                pptCount = sum(tilePartCharacteristics.findAllText('tilePart/pptCount'))
+                self.testFor("noPPTMarkersWithPPM", pptCount == 0)
 
             # Test if all ccoc values at main header level are unique
             # (A.6.2 - no more than one COC per any given component)
@@ -472,10 +580,6 @@ class CSValidator(Validator):
                     "maxOneCqccPerComponentMain", len(
                         set(cqccValuesMain)) == len(cqccValuesMain))
 
-            # Test if ccoc and cqcc values are consecutive numbers
-            self.testFor("ccocValuesConsecutive", self._consecutive(ccocValuesMain))
-            self.testFor("cqccValuesConsecutive", self._consecutive(cqccValuesMain))
-
             # Consistency tests on TLM marker segments
             if len(self.characteristics.findall('tlm')) > 0:
                 # Test if sum of tpCount values from TLM marker segments
@@ -492,20 +596,33 @@ class CSValidator(Validator):
 
                 self.testFor("tilePartsTLMConsistencyCheck", tpCountTlm == tpCount)
 
+                # The information of all TLM marker segments is concatenated in
+                # order of their ztlm index, which must be unique (ISO/IEC 15444-1
+                # Section A.7.1)
+                tlmElements = sorted(self.characteristics.findall('tlm'),
+                                     key=lambda tlm: tlm.findElementText('ztlm'))
+                ztlms = [tlm.findElementText('ztlm') for tlm in tlmElements]
+                self.testFor("ztlmValuesUnique", len(set(ztlms)) == len(ztlms))
+
                 # Test if tile part lengths defined by ptlm values in TLM marker segments
                 # correspond to psot values in SOT marker segments
-                ptlmElements = self.characteristics.findall('tlm/ptlm')
-                psotElements = self.characteristics.findall('tileParts/tilePart/sot/psot')
-
-                # Lists of all ptlm and psot values
-                ptlms = []
-                for i in range(len(ptlmElements)):
-                    ptlms.append(ptlmElements[i].text)
-                psots = []
-                for i in range(len(psotElements)):
-                    psots.append(psotElements[i].text)
+                ptlms = [ptlm for tlm in tlmElements for ptlm in tlm.findAllText('ptlm')]
+                psots = self.characteristics.findAllText('tileParts/tilePart/sot/psot')
 
                 self.testFor("tilePartLengthsConsistencyCheck", ptlms == psots)
+
+                # Test if tile indices in TLM marker segments correspond to isot values
+                # in SOT marker segments. With st = 0 there are no ttlm values, and
+                # tile-part i belongs to tile i (one tile-part per tile)
+                ttlms = []
+                for tlm in tlmElements:
+                    if tlm.findElementText('st') == 0:
+                        ttlms += range(len(ttlms), len(ttlms) + tlm.findElementText('tpCount'))
+                    else:
+                        ttlms += tlm.findAllText('ttlm')
+                isots = self.characteristics.findAllText('tileParts/tilePart/sot/isot')
+
+                self.testFor("tileIndicesTLMConsistencyCheck", ttlms == isots)
 
             # Last 2 bytes must be end-of-codestream marker
             self.testFor("foundEOCMarker",
@@ -516,7 +633,7 @@ class CSValidator(Validator):
                 # Calculate compression ratio
                 ssizDepthValues = characteristicsSIZ.findAllText('ssizDepth')
                 ysiz = characteristicsSIZ.findElementText('ysiz')
-                yOsiz = characteristicsSIZ.findElementText('xOsiz')
+                yOsiz = characteristicsSIZ.findElementText('yOsiz')
                 xsiz = characteristicsSIZ.findElementText('xsiz')
                 xOsiz = characteristicsSIZ.findElementText('xOsiz')
 

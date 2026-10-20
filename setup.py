@@ -18,15 +18,11 @@ def find_version(*file_paths):
         return version_match.group(1)
     raise RuntimeError("Unable to find version string.")
 
-INSTALL_REQUIRES = [
-    'setuptools',
-    ]
+INSTALL_REQUIRES = []
 
-PYTHON_REQUIRES = '>=3.2, <4'
+PYTHON_REQUIRES = '>=3.8, <4'
 
-README = open('README.md', 'r')
-README_TEXT = README.read()
-README.close()
+README_TEXT = read('README.md')
 
 setup(name='jpylyzer',
       packages=find_packages(exclude=['tests*']),

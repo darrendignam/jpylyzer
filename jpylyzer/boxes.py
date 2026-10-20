@@ -4,6 +4,7 @@ Validation of all defined boxes for JP2 and JPH
 """
 
 from __future__ import division
+import re
 import uuid
 import math
 from . import etpatch as ET
@@ -12,6 +13,14 @@ from . import shared
 from .validator import Validator
 from .codestream import CSValidator
 from .icc import IccValidator
+
+# Namespace names in the report must be URI references (Namespaces in XML), or
+# parsers such as libxml2 reject the whole report: characters allowed by
+# RFC 3986, with '%' only as part of a percent-encoded octet, and '[' and ']'
+# only around an IP literal host directly after "scheme://"
+NAMESPACE_NAME = re.compile(
+    r"(?:[A-Za-z][A-Za-z0-9+.\-]*://\[[0-9A-Za-z.:]+\])?"
+    r"(?:[A-Za-z0-9\-._~:/?#@!$&'()*+,;=]|%[0-9A-Fa-f]{2})*\Z")
 
 
 class BoxValidator(Validator):
@@ -50,11 +59,18 @@ class BoxValidator(Validator):
         """
         boxType = self.bTypeString
 
+        # Box types that are not printable ASCII are reported in hexadecimal;
+        # as text they would come out empty or garbled
+        if all(0x20 <= byte <= 0x7e for byte in boxType):
+            boxTypeText = boxType.decode('ascii')
+        else:
+            boxTypeText = '0x' + boxType.hex()
+
         # Add boxType string to output
-        self.addCharacteristic("boxType", boxType)
+        self.addCharacteristic("boxType", boxTypeText)
 
         # Print warning message to screen
-        msg = "ignoring unknown box '" + bc.bytesToText(boxType) + "'"
+        msg = "ignoring unknown box '" + boxTypeText + "'"
         self.addWarning(msg)
         shared.printWarning(msg)
 
@@ -71,13 +87,10 @@ class BoxValidator(Validator):
     def validate_fileTypeBox(self):
         """File type box (ISO/IEC 15444-1 Section I.5.2;
         ISO/IEC 15444-15 Section D.3)."""
-        # Determine number of compatibility fields from box length
-        numberOfCompatibilityFields = (len(self.boxContents) - 8) / 4
-
-        # This should never produce a decimal number (would indicate missing
-        # data)
-        self.testFor("boxLengthIsValid", numberOfCompatibilityFields == int(
-            numberOfCompatibilityFields))
+        # Box holds BR (4 bytes), MinV (4 bytes) and at least one 4-byte CL
+        # field
+        boxLength = len(self.boxContents)
+        self.testFor("boxLengthIsValid", boxLength >= 12 and boxLength % 4 == 0)
 
         # Brand value
         br = self.boxContents[0:4]
@@ -103,7 +116,7 @@ class BoxValidator(Validator):
         cLList = []
         offset = 8
 
-        for _ in range(int(numberOfCompatibilityFields)):
+        for _ in range(max(boxLength - 8, 0) // 4):
             cL = self.boxContents[offset:offset + 4]
             self.addCharacteristic("cL", cL)
             cLList.append(cL)
@@ -131,7 +144,13 @@ class BoxValidator(Validator):
         # Dummy value
         boxLengthValue = 10
 
+        # Sub-box lengths must be valid and fit in this box; a sub-box cannot
+        # extend to the end of the file (LBox 0) as this box does not
+        subBoxLengthsAreValid = True
+
         while byteStart < noBytes and boxLengthValue not in [0, -9999]:
+            subBoxLengthsAreValid = subBoxLengthsAreValid and self._boxLengthIsValid(
+                byteStart, noBytes, lengthZeroAllowed=False)
             boxLengthValue, boxType, byteEnd, subBoxContents = self._getBox(byteStart,
                                                                             noBytes)
 
@@ -144,6 +163,15 @@ class BoxValidator(Validator):
             characteristicsBox = resultsBox.characteristics
             warningsBox = resultsBox.warnings
 
+            # A JP2 reader ignores all Colour Specification boxes after the first
+            # (ISO/IEC 15444-1 Section I.5.3.3), so report them without testing
+            if (self.format == 'jp2' and
+                    boxType == self.boxTagMap['colourSpecificationBox'] and
+                    self.boxTagMap['colourSpecificationBox'] in subBoxTypes):
+                testsBox = ET.Element('tests')
+                self.addWarning("Colour Specification box after the first one is "
+                                "ignored by JP2 readers and was not tested")
+
             byteStart = byteEnd
 
             # Add to list of box types
@@ -154,6 +182,8 @@ class BoxValidator(Validator):
             self.tests.appendIfNotEmpty(testsBox)
             self.characteristics.append(characteristicsBox)
             self.warnings.appendIfNotEmpty(warningsBox)
+
+        self.testFor("subBoxLengthsAreValid", subBoxLengthsAreValid)
 
         # Do all required header boxes exist?
         self.testFor("containsImageHeaderBox",
@@ -231,6 +261,76 @@ class BoxValidator(Validator):
         self.testFor("paletteAndComponentMappingBoxesOnlyTogether",
                      paletteAndComponentMappingBoxesOnlyTogether)
 
+        self._validateChannels(subBoxTypes)
+
+    def _numberOfColours(self):
+        """Number of colours of the colourspace in the first Colour Specification
+        box, or None if not known (ISO/IEC 15444-1 Section I.5.3.3)."""
+        meth = self.characteristics.findElementText('colourSpecificationBox/meth')
+        if meth == 1:
+            enumCS = self.characteristics.findElementText('colourSpecificationBox/enumCS')
+            return {16: 3, 17: 1, 18: 3}.get(enumCS)
+        if meth == 2:
+            colourSpace = self.characteristics.findElementText(
+                'colourSpecificationBox/icc/colourSpace')
+            return {b'RGB ': 3, b'GRAY': 1}.get(colourSpace)
+        return None
+
+    def _validateChannels(self, subBoxTypes):
+        """Consistency of the component, palette, channel and colour definitions
+        in the Image Header, Bits Per Component, Palette, Component Mapping and
+        Channel Definition boxes (ISO/IEC 15444-1 Sections I.5.3.1 to I.5.3.6)."""
+        nC = self.characteristics.findElementText('imageHeaderBox/nC')
+        if not isinstance(nC, int) or nC < 1:
+            return
+
+        # Bits Per Component box: only if BPC in the Image Header box is 255
+        # (signalled as sign 1, depth 128), with one value for each component
+        if self.boxTagMap['bitsPerComponentBox'] in subBoxTypes:
+            sign = self.characteristics.findElementText('imageHeaderBox/bPCSign')
+            depth = self.characteristics.findElementText('imageHeaderBox/bPCDepth')
+            self.testFor("bitsPerComponentBoxOnlyIfBPCIs255", sign == 1 and depth == 128)
+            self.testFor("bPCValuesConsistentWithNC", len(
+                self.characteristics.findAllText('bitsPerComponentBox/bPCDepth')) == nC)
+
+        # Component Mapping box: component indices below nC, palette columns
+        # below nPC; it defines the channels if present, otherwise each
+        # component is a channel
+        numberOfChannels = nC
+        if self.boxTagMap['componentMappingBox'] in subBoxTypes:
+            cMPs = self.characteristics.findAllText('componentMappingBox/cMP')
+            mTyps = self.characteristics.findAllText('componentMappingBox/mTyp')
+            pCols = self.characteristics.findAllText('componentMappingBox/pCol')
+            self.testFor("cMPValuesConsistentWithNC", all(cMP < nC for cMP in cMPs))
+            nPC = self.characteristics.findElementText('paletteBox/nPC')
+            if isinstance(nPC, int):
+                self.testFor("pColValuesConsistentWithNPC",
+                             all(pCol < nPC for mTyp, pCol in zip(mTyps, pCols)
+                                 if mTyp == 1))
+            numberOfChannels = len(cMPs)
+
+        # JP2: every colour of the colourspace needs a channel (I.5.3.6). This
+        # is relaxed for JPH (ISO/IEC 15444-15 Section D.6.2)
+        numberOfColours = self._numberOfColours() if self.format == 'jp2' else None
+
+        if self.boxTagMap['channelDefinitionBox'] in subBoxTypes:
+            cNs = self.characteristics.findAllText('channelDefinitionBox/cN')
+            cTyps = self.characteristics.findAllText('channelDefinitionBox/cTyp')
+            cAssocs = self.characteristics.findAllText('channelDefinitionBox/cAssoc')
+            self.testFor("cNValuesConsistentWithChannels",
+                         all(cN < numberOfChannels for cN in cNs))
+            self.testFor("cNValuesUnique", len(set(cNs)) == len(cNs))
+            if numberOfColours:
+                # One colour channel (cTyp 0) for each colour, 1 to numberOfColours
+                colourAssociations = sorted(cAssoc for cTyp, cAssoc in zip(cTyps, cAssocs)
+                                            if cTyp == 0)
+                self.testFor("colourChannelsConsistentWithColourSpace",
+                             colourAssociations == list(range(1, numberOfColours + 1)))
+        elif numberOfColours:
+            # Without a Channel Definition box channel i is colour i + 1
+            self.testFor("numberOfChannelsConsistentWithColourSpace",
+                         numberOfChannels >= numberOfColours)
+
     # Validator functions for boxes in JP2 Header superbox
     def validate_imageHeaderBox(self):
         """Image header box (ISO/IEC 15444-1 Section I.5.3.1).
@@ -274,7 +374,7 @@ class BoxValidator(Validator):
         # 1. bPCDepth in range 1-38 (including limits)
         # 2. OR bPC equal 255 (indicating that components vary in bit depth)
         bPCDepthIsWithinAllowedRange = 1 <= bPCDepth <= 38
-        bitDepthIsVariable = 1 <= bPC <= 255
+        bitDepthIsVariable = bPC == 255
 
         bPCIsValid = bool(bPCDepthIsWithinAllowedRange or bitDepthIsVariable)
 
@@ -370,6 +470,9 @@ class BoxValidator(Validator):
         # Colour space info: enumerated CS or embedded ICC profile,
         # depending on value of meth
         if meth == 1:
+            # METH, PREC, APPROX and a 4-byte EnumCS field
+            self.testFor("boxLengthIsValid", length == 7)
+
             # Enumerated colour space field (long integer)
             enumCS = bc.bytesToUInt(self.boxContents[3:length])
             self.addCharacteristic("enumCS", enumCS)
@@ -416,6 +519,23 @@ class BoxValidator(Validator):
             # Step 3: verify non-existence of "AToB0Tag"
             self.testFor("iccNoLUTBasedProfile", b'A2B0' not in tagSignatures)
 
+            # A restricted ICC profile is a Monochrome or a Three-Component
+            # Matrix-Based profile (ISO/IEC 15444-1 Section I.5.3.3; ICC.1:2022
+            # Section 8.3), so its colour space is GRAY or RGB, it has the grey
+            # TRC or the matrix column and TRC tags, and an RGB profile uses XYZ
+            # as profile connection space
+            colourSpace = iccCharacteristics.findElementText('colourSpace')
+            self.testFor("iccPermittedColourSpace", colourSpace in [b'GRAY', b'RGB '])
+            requiredTags = {b'GRAY': [b'kTRC'],
+                            b'RGB ': [b'rXYZ', b'gXYZ', b'bXYZ',
+                                      b'rTRC', b'gTRC', b'bTRC']}.get(colourSpace, [])
+            self.testFor("iccRequiredTagsPresent",
+                         all(tag in tagSignatures for tag in requiredTags))
+            if colourSpace == b'RGB ':
+                self.testFor("iccPermittedConnectionSpace",
+                             iccCharacteristics.findElementText(
+                                 'profileConnectionSpace') == b'XYZ ')
+
         elif meth == 3:
             # ICC profile embedded using "Any ICC" method. Used in JPEG 2000 Part 2
             # (JPX) and Part 15 (JPH)
@@ -431,6 +551,9 @@ class BoxValidator(Validator):
 
         elif meth == 5:
             # Parameterized colourspace. Used in JPEG 2000 Part 15 (JPH)
+
+            # METH, PREC, APPROX, three 2-byte H.273 codes and 1 flags byte
+            self.testFor("boxLengthIsValid", length == 10)
 
             # ColourPrimaries value
             colPrims = bc.bytesToUShortInt(self.boxContents[3:5])
@@ -493,11 +616,25 @@ class BoxValidator(Validator):
         # nPC within range 1-255
         self.testFor("nPCIsValid", 1 <= nPC <= 255)
 
-        # Following parameters are repeated for each column
-        for i in range(nPC):
+        # Bit depth of the values of each column (B_i)
+        bValues = [bc.bytesToUnsignedChar(self.boxContents[3 + i:4 + i])
+                   for i in range(nPC)]
 
-            # Bit depth of values created by column i
-            b = bc.bytesToUnsignedChar(self.boxContents[3 + i:4 + i])
+        # Each value is stored in a whole number of bytes, e.g. a 10-bit value
+        # in 2 bytes (C value stored in the low 10 bits)
+        bytesPerColumn = [math.ceil(((b & 127) + 1) / 8) for b in bValues]
+        bytesPerEntry = sum(bytesPerColumn)
+
+        # Box holds NE, NPC, B_i, then NE entries of NPC values each
+        boxLengthIsValid = len(self.boxContents) == 3 + nPC + nE * bytesPerEntry
+        self.testFor("boxLengthIsValid", boxLengthIsValid)
+
+        # Values are only read from a complete, valid table, so a malformed
+        # NE cannot produce output out of proportion to the box
+        readValues = boxLengthIsValid and 1 <= nE <= 1024
+
+        columnOffset = 0
+        for b, columnBytes in zip(bValues, bytesPerColumn):
 
             # Most significant bit indicates whether palette column is signed (1)
             # or unsigned (0). Extracted by applying bit mask of 10000000
@@ -514,25 +651,19 @@ class BoxValidator(Validator):
             # limits)
             self.testFor("bDepthIsValid", 1 <= bDepth <= 38)
 
-            # If bDepth is not a multiple of 8 bits add padding bits
-            # E.g. if bDepth is 10, bDepthPadded will be 16 bits, and
-            # C value will be stored in low 10 bits of 16-bit field
-            bDepthPadded = math.ceil(bDepth / 8) * 8
-            bytesPadded = int(bDepthPadded / 8)
+            if readValues:
+                # Entries are stored one after another, each holding the value
+                # of every column (C_ji: entry j, column i), so the values of
+                # this column are bytesPerEntry apart
+                offset = 3 + nPC + columnOffset
+                for _ in range(nE):
+                    # Convert to integer (cP could be *any* length so we cannot rely
+                    # on struct.unpack!)
+                    cP = bc.bytesToInteger(self.boxContents[offset:offset + columnBytes])
+                    self.addCharacteristic("cP", cP)
+                    offset += bytesPerEntry
 
-            # Start offset of cP entries for this column
-            offset = nPC + 3 + i * (nE * bytesPadded)
-
-            for _ in range(nE):
-                # Get bytes for this entry
-                cPAsBytes = self.boxContents[offset:offset + bytesPadded]
-
-                # Convert to integer (cP could be *any* length so we cannot rely
-                # on struct.unpack!)
-                cP = bc.bytesToInteger(cPAsBytes)
-                self.addCharacteristic("cP", cP)
-
-                offset += bytesPadded
+            columnOffset += columnBytes
 
     def validate_componentMappingBox(self):
         """Component mapping box (ISO/IEC 15444-1 Section I.5.3.5).
@@ -540,6 +671,10 @@ class BoxValidator(Validator):
         This box defines how image channels are identified from actual
         components
         """
+        # Each channel is described by 4 bytes
+        self.testFor("boxLengthIsValid", len(self.boxContents) > 0 and
+                     len(self.boxContents) % 4 == 0)
+
         # Determine number of channels from box length
         numberOfChannels = int(len(self.boxContents) / 4)
 
@@ -552,8 +687,8 @@ class BoxValidator(Validator):
             cMP = bc.bytesToUShortInt(self.boxContents[offset:offset + 2])
             self.addCharacteristic("cMP", cMP)
 
-            # Allowed range: 0 - 16384
-            self.testFor("cMPIsValid", 0 <= cMP <= 16384)
+            # Component index: at most 16384 components, so 0 - 16383
+            self.testFor("cMPIsValid", 0 <= cMP <= 16383)
 
             # Specifies how channel is generated from codestream component
             mTyp = bc.bytesToUnsignedChar(
@@ -627,7 +762,7 @@ class BoxValidator(Validator):
             self.addCharacteristic("cAssoc", cAssoc)
 
             # Allowed range: 0 - 65535
-            self.testFor("cAssocIsValid", 0 <= cTyp <= 65535)
+            self.testFor("cAssocIsValid", 0 <= cAssoc <= 65535)
 
             if cTyp in [1, 2]:
                 alphaChannels.append([cTyp, cAssoc])
@@ -661,8 +796,14 @@ class BoxValidator(Validator):
         # Dummy value
         boxLengthValue = 10
 
+        # Sub-box lengths must be valid and fit in this box; a sub-box cannot
+        # extend to the end of the file (LBox 0) as this box does not
+        subBoxLengthsAreValid = True
+
         while byteStart < noBytes and boxLengthValue not in [0, -9999]:
 
+            subBoxLengthsAreValid = subBoxLengthsAreValid and self._boxLengthIsValid(
+                byteStart, noBytes, lengthZeroAllowed=False)
             boxLengthValue, boxType, byteEnd, subBoxContents = self._getBox(byteStart,
                                                                             noBytes)
 
@@ -686,6 +827,8 @@ class BoxValidator(Validator):
             self.characteristics.append(characteristicsBox)
             self.warnings.appendIfNotEmpty(warningsBox)
 
+        self.testFor("subBoxLengthsAreValid", subBoxLengthsAreValid)
+
         # This box contains either one Capture Resolution box, one Default Display
         # resolution box, or one of both
         self.testFor("containsCaptureOrDisplayResolutionBox",
@@ -697,6 +840,23 @@ class BoxValidator(Validator):
                      subBoxTypes.count(tagDisplayResolutionBox) <= 1)
 
     # Validator functions for boxes in Resolution box
+
+    @staticmethod
+    def _gridResolution(numerator, denominator, exponent):
+        """Grid resolution in pixels per meter (ISO/IEC 15444-1 Sections I.5.3.7.1,
+        I.5.3.7.2), or -9999 if any field is out of range (e.g. a zero
+        denominator)."""
+        if 1 <= numerator <= 65535 and 1 <= denominator <= 65535 and \
+                -128 <= exponent <= 127:
+            return (numerator / denominator) * (10 ** exponent)
+        return -9999
+
+    @staticmethod
+    def _pixelsPerInch(pixelsPerMeter):
+        """Convert pixels per meter to pixels per inch, keeping -9999 as is."""
+        if pixelsPerMeter == -9999:
+            return -9999
+        return pixelsPerMeter * 25.4e-3
 
     def validate_captureResolutionBox(self):
         """Capture  Resolution Box (ISO/IEC 15444-1 Section I.5.3.7.1)."""
@@ -741,19 +901,19 @@ class BoxValidator(Validator):
 
         # Include vertical and horizontal resolution values in pixels per meter
         # and pixels per inch in output
-        vRescInPixelsPerMeter = (vRcN / vRcD) * (10 ** (vRcE))
+        vRescInPixelsPerMeter = self._gridResolution(vRcN, vRcD, vRcE)
         self.addCharacteristic(
             "vRescInPixelsPerMeter", round(vRescInPixelsPerMeter, 2))
 
-        hRescInPixelsPerMeter = (hRcN / hRcD) * (10 ** (hRcE))
+        hRescInPixelsPerMeter = self._gridResolution(hRcN, hRcD, hRcE)
         self.addCharacteristic(
             "hRescInPixelsPerMeter", round(hRescInPixelsPerMeter, 2))
 
-        vRescInPixelsPerInch = vRescInPixelsPerMeter * 25.4e-3
+        vRescInPixelsPerInch = self._pixelsPerInch(vRescInPixelsPerMeter)
         self.addCharacteristic(
             "vRescInPixelsPerInch", round(vRescInPixelsPerInch, 2))
 
-        hRescInPixelsPerInch = hRescInPixelsPerMeter * 25.4e-3
+        hRescInPixelsPerInch = self._pixelsPerInch(hRescInPixelsPerMeter)
         self.addCharacteristic(
             "hRescInPixelsPerInch", round(hRescInPixelsPerInch, 2))
 
@@ -800,19 +960,19 @@ class BoxValidator(Validator):
 
         # Include vertical and horizontal resolution values in pixels per meter
         # and pixels per inch in output
-        vResdInPixelsPerMeter = (vRdN / vRdD) * (10 ** (vRdE))
+        vResdInPixelsPerMeter = self._gridResolution(vRdN, vRdD, vRdE)
         self.addCharacteristic(
             "vResdInPixelsPerMeter", round(vResdInPixelsPerMeter, 2))
 
-        hResdInPixelsPerMeter = (hRdN / hRdD) * (10 ** (hRdE))
+        hResdInPixelsPerMeter = self._gridResolution(hRdN, hRdD, hRdE)
         self.addCharacteristic(
             "hResdInPixelsPerMeter", round(hResdInPixelsPerMeter, 2))
 
-        vResdInPixelsPerInch = vResdInPixelsPerMeter * 25.4e-3
+        vResdInPixelsPerInch = self._pixelsPerInch(vResdInPixelsPerMeter)
         self.addCharacteristic(
             "vResdInPixelsPerInch", round(vResdInPixelsPerInch, 2))
 
-        hResdInPixelsPerInch = hResdInPixelsPerMeter * 25.4e-3
+        hResdInPixelsPerInch = self._pixelsPerInch(hResdInPixelsPerMeter)
         self.addCharacteristic(
             "hResdInPixelsPerInch", round(hResdInPixelsPerInch, 2))
 
@@ -830,6 +990,17 @@ class BoxValidator(Validator):
         self.characteristics.tag = self.boxType
         self.warnings.tag = self.boxType
 
+    def _appendEmbeddedXml(self, element):
+        """Add XML parsed from the file to the characteristics tree, unless it
+        uses a namespace name that is not a URI reference."""
+        for node in element.iter():
+            for name in [node.tag, *node.attrib]:
+                if name.startswith("{") and not NAMESPACE_NAME.match(name[1:name.index("}")]):
+                    self.addWarning("embedded XML not reported: namespace name '" +
+                                    name[1:name.index("}")] + "' is not a valid URI")
+                    return
+        self.characteristics.append(element)
+
     def validate_xmlBox(self):
         """XML Box (ISO/IEC 15444-1 Section I.7.1)."""
         data = self.boxContents
@@ -841,7 +1012,7 @@ class BoxValidator(Validator):
             dataAsElement = ET.fromstring(data)
 
             # Add data to characteristics tree
-            self.characteristics.append(dataAsElement)
+            self._appendEmbeddedXml(dataAsElement)
 
             # If no exception was raised data contains well-formed XML
             containsWellformedXML = True
@@ -854,7 +1025,7 @@ class BoxValidator(Validator):
                 try:
                     data = bc.removeNullTerminator(data)
                     dataAsElement = ET.fromstring(data)
-                    self.characteristics.append(dataAsElement)
+                    self._appendEmbeddedXml(dataAsElement)
                 except Exception:
                     pass
 
@@ -876,6 +1047,10 @@ class BoxValidator(Validator):
         # Check box size, which must be greater than 16 bytes
         self.testFor("boxLengthIsValid", boxLength > 16)
 
+        if boxLength < 16:
+            # Too short to contain a UUID
+            return
+
         # First 16 bytes contain UUID, convert to string of hex digits
         # in standard form
         boxUUID = str(uuid.UUID(bytes=self.boxContents[0:16]))
@@ -891,11 +1066,11 @@ class BoxValidator(Validator):
                 dataAsElement = ET.fromstring(data)
 
                 # Add data to characteristics tree
-                self.characteristics.append(dataAsElement)
+                self._appendEmbeddedXml(dataAsElement)
 
                 # If no exception was raised data contains well-formed XML
                 containsWellformedXML = True
-            except BaseException:
+            except Exception:
                 # If parse raised error this is not well-formed XML
                 containsWellformedXML = False
 
@@ -905,8 +1080,8 @@ class BoxValidator(Validator):
                     try:
                         data = bc.removeNullTerminator(data)
                         dataAsElement = ET.fromstring(data)
-                        self.characteristics.append(dataAsElement)
-                    except BaseException:
+                        self._appendEmbeddedXml(dataAsElement)
+                    except Exception:
                         pass
 
             self.testFor("containsWellformedXML", containsWellformedXML)
@@ -932,8 +1107,14 @@ class BoxValidator(Validator):
         # Dummy value
         boxLengthValue = 10
 
+        # Sub-box lengths must be valid and fit in this box; a sub-box cannot
+        # extend to the end of the file (LBox 0) as this box does not
+        subBoxLengthsAreValid = True
+
         while byteStart < noBytes and boxLengthValue not in [0, -9999]:
 
+            subBoxLengthsAreValid = subBoxLengthsAreValid and self._boxLengthIsValid(
+                byteStart, noBytes, lengthZeroAllowed=False)
             boxLengthValue, boxType, byteEnd, subBoxContents = self._getBox(byteStart,
                                                                             noBytes)
 
@@ -957,6 +1138,8 @@ class BoxValidator(Validator):
             self.characteristics.append(characteristicsBox)
             self.warnings.appendIfNotEmpty(warningsBox)
 
+        self.testFor("subBoxLengthsAreValid", subBoxLengthsAreValid)
+
         # This box contains one UUID List box and one Data Entry URL box
         self.testFor("containsOneListBox", subBoxTypes.count(tagListBox) == 1)
         self.testFor("containsOneURLBox", subBoxTypes.count(tagURLBox) == 1)
@@ -973,9 +1156,9 @@ class BoxValidator(Validator):
         # Each UUID is 16 byte string, so check if total box length is valid
         self.testFor("boxLengthIsValid", len(self.boxContents) == nU * 16 + 2)
 
-        # Loop through all UUIDs
+        # Loop through all UUIDs that are actually present
         offset = 2
-        for _ in range(nU):
+        for _ in range(min(nU, (len(self.boxContents) - 2) // 16)):
             boxUUID = str(
                 uuid.UUID(bytes=self.boxContents[offset:offset + 16]))
             self.addCharacteristic("uuid", boxUUID)

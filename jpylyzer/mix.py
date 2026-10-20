@@ -76,27 +76,19 @@ class Mix:
             'jp2HeaderBox/imageHeaderBox/height').text)
         mixBic.appendChildTagWithText('mix:imageWidth', width)
         mixBic.appendChildTagWithText('mix:imageHeight', height)
-        # Try ICC first
-        iccElement = properties.find('jp2HeaderBox/colourSpecificationBox/icc')
-        if iccElement is not None:
+        colorSpace = Mix.getColorSpace(properties)
+        if colorSpace is not None:
             mixPI = ET.Element('mix:PhotometricInterpretation')
-            colorSpace = properties.find(
-                'jp2HeaderBox/colourSpecificationBox/icc/colourSpace').text
-            mixPI.appendChildTagWithText('mix:colorSpace', colorSpace.strip())
+            mixPI.appendChildTagWithText('mix:colorSpace', colorSpace)
             iccProfile = properties.find(
-                'jp2HeaderBox/colourSpecificationBox/icc/description').text
-            mixColorProfile = ET.Element('mix:ColorProfile')
-            mixIccProfile = ET.Element('mix:IccProfile')
-            mixIccProfile.appendChildTagWithText(
-                'mix:iccProfileName', iccProfile)
-            mixColorProfile.append(mixIccProfile)
-            mixPI.append(mixColorProfile)
-            mixBic.append(mixPI)
-        else:
-            mixPI = ET.Element('mix:PhotometricInterpretation')
-            colorSpace = properties.find(
-                'jp2HeaderBox/colourSpecificationBox/enumCS').text
-            mixPI.appendChildTagWithText('mix:colorSpace', colorSpace.strip())
+                'jp2HeaderBox/colourSpecificationBox/icc/description')
+            if iccProfile is not None:
+                mixColorProfile = ET.Element('mix:ColorProfile')
+                mixIccProfile = ET.Element('mix:IccProfile')
+                mixIccProfile.appendChildTagWithText(
+                    'mix:iccProfileName', iccProfile.text)
+                mixColorProfile.append(mixIccProfile)
+                mixPI.append(mixColorProfile)
             mixBic.append(mixPI)
         mixBio.append(mixBic)
 
@@ -141,6 +133,28 @@ class Mix:
         return mixBio
 
     @staticmethod
+    def getColorSpace(properties):
+        """Colour space of the first colour specification box: the ICC profile's
+        colour space, the enumerated colour space, or (for the parameterized
+        colour space of ISO/IEC 15444-15, METH 5) greyscale, RGB or YCbCr.
+        Returns None if the colour space cannot be determined."""
+        colourSpecification = 'jp2HeaderBox/colourSpecificationBox/'
+        for path in ('icc/colourSpace', 'enumCS'):
+            colorSpace = properties.find(colourSpecification + path)
+            if colorSpace is not None:
+                return colorSpace.text.strip()
+
+        matCoeffs = properties.find(colourSpecification + 'matCoeffs')
+        if matCoeffs is None:
+            return None
+        if properties.find('jp2HeaderBox/imageHeaderBox/nC').text == '1':
+            return 'greyscale'
+        # MatrixCoefficients 0 (Rec. ITU-T H.273) is the identity matrix
+        if matCoeffs.text == '0':
+            return 'RGB'
+        return 'YCbCr'
+
+    @staticmethod
     def findValueInRDF(prop, prefixPath, ns, tag):
         """Find a value in RDF : first as an element then as an attribute."""
         path = prefixPath + "/" + ns + tag
@@ -148,7 +162,10 @@ class Mix:
         if value is not None:
             return value.text
 
-        value = prop.find(prefixPath).attrib.get(ns + tag, None)
+        description = prop.find(prefixPath)
+        if description is None:
+            return None
+        value = description.attrib.get(ns + tag, None)
         if value and value is not None:
             return value
         return None
@@ -169,9 +186,10 @@ class Mix:
             return None
 
         mixIcm = ET.Element('mix:ImageCaptureMetadata')
+        # XMP from an XML box, or else from an XMP UUID box
         rdfBox = properties.find('xmlBox/{adobe:ns:meta/}xmpmeta/'
                                  '{http://www.w3.org/1999/02/22-rdf-syntax-ns#}RDF')
-        if rdfBox is not None:
+        if rdfBox is None:
             rdfBox = properties.find('uuidBox/{adobe:ns:meta/}xmpmeta/'
                                      '{http://www.w3.org/1999/02/22-rdf-syntax-ns#}RDF')
         if rdfBox is None:

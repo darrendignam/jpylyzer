@@ -36,7 +36,7 @@ Contributors:
 
 import sys
 import os
-import time
+import re
 import datetime
 import glob
 import argparse
@@ -56,8 +56,9 @@ except ImportError:
 
 SCRIPT_PATH, SCRIPT_NAME = os.path.split(sys.argv[0])
 
-# SCRIPT_NAME is empty when called from Java/Jython, so this needs a fix
-if not SCRIPT_NAME:
+# SCRIPT_NAME is empty when called from Java/Jython, and __main__.py when
+# run as 'python -m jpylyzer', so this needs a fix
+if SCRIPT_NAME in ['', '__main__.py']:
     SCRIPT_NAME = 'jpylyzer'
 
 __version__ = "2.3.0rc1"
@@ -68,6 +69,9 @@ PARSER = argparse.ArgumentParser(
 
 # list of existing files to be analysed
 EXISTING_FILES = []
+
+# Characters that XML 1.0 cannot represent (surrogates are handled separately)
+XML_INVALID_CHARACTERS = re.compile('[\x00-\x08\x0b\x0c\x0e-\x1f\ufffe\uffff]')
 
 # Name space and schema strings
 NS_STRING_2 = 'http://openpreservation.org/ns/jpylyzer/v2/'
@@ -356,24 +360,28 @@ def checkOneFile(path, validationFormat=config.VALIDATION_FORMAT,
     fileName = os.path.basename(path)
     filePath = os.path.abspath(path)
 
-    # If file name / path contain any surrogate pairs, remove them to
-    # avoid problems when writing to XML
-    fileNameCleaned = stripSurrogatePairs(fileName)
-    filePathCleaned = stripSurrogatePairs(filePath)
+    # If file name / path contain any surrogate pairs or characters that
+    # XML cannot represent, clean them up to avoid problems when writing to XML
+    fileNameCleaned = escapeXmlInvalidCharacters(stripSurrogatePairs(fileName))
+    filePathCleaned = escapeXmlInvalidCharacters(stripSurrogatePairs(filePath))
 
     # Produce some general tool and file meta info
     fileInfo.appendChildTagWithText("fileName", fileNameCleaned)
     fileInfo.appendChildTagWithText("filePath", filePathCleaned)
-    fileInfo.appendChildTagWithText(
-        "fileSizeInBytes", str(os.path.getsize(path)))
+    try:
+        fileSize = os.path.getsize(path)
+    except OSError:
+        # File removed or unreadable since it was found; reported below
+        fileSize = -9999
+    fileInfo.appendChildTagWithText("fileSizeInBytes", str(fileSize))
     try:
         dt = os.path.getmtime(path)
         lastModifiedDate = datetime.datetime.fromtimestamp(dt).isoformat()
-    except ValueError:
-        # Dates earlier than 1 Jan 1970 can raise ValueError on Windows
-        # Workaround: replace by lowest possible value (typically 1 Jan 1970)
-        dt = time.ctime(0)
-        lastModifiedDate = datetime.datetime.fromtimestamp(dt).isoformat()
+    except (ValueError, OverflowError, OSError):
+        # Dates outside the platform's range raise ValueError or OverflowError,
+        # and dates earlier than 1 Jan 1970 raise OSError on Windows.
+        # Workaround: replace by lowest possible value (1 Jan 1970)
+        lastModifiedDate = datetime.datetime(1970, 1, 1).isoformat()
     fileInfo.appendChildTagWithText(
         "fileLastModified", lastModifiedDate)
 
@@ -396,21 +404,26 @@ def checkOneFile(path, validationFormat=config.VALIDATION_FORMAT,
         vOptions['nullxmlFlag'] = nullxmlFlag
         vOptions['packetmarkersFlag'] = packetmarkersFlag
 
-        # Set root box according to format and start validation
-        if validationFormat in ['jp2', 'jph']:
-            boxType = 'JP2'
-            resultsJP2 = JP2Validator(vOptions, boxType, fileData).validate()
-        elif validationFormat in ['j2c', 'jhc']:
-            boxType = 'codestream'
-            resultsJP2 = CSValidator(vOptions, boxType, fileData).validate()
+        # Set root box according to format and start validation. The memory
+        # map is closed whether or not validation succeeds
+        try:
+            if validationFormat in ['jp2', 'jph']:
+                boxType = 'JP2'
+                resultsJP2 = JP2Validator(vOptions, boxType, fileData).validate()
+            elif validationFormat in ['j2c', 'jhc']:
+                boxType = 'codestream'
+                resultsJP2 = CSValidator(vOptions, boxType, fileData).validate()
+            else:
+                raise ValueError("unsupported validation format '" +
+                                 str(validationFormat) + "'")
+        finally:
+            if not NO_MMAP_LIB and fileData != "":
+                fileData.close()
 
         fileIsValid = resultsJP2.isValid
         tests = resultsJP2.tests
         characteristics = resultsJP2.characteristics
         warnings = resultsJP2.warnings
-
-        if not NO_MMAP_LIB and fileData != "":
-            fileData.close()
 
         # Add any memory-mapping related warnings to warnings element
         for fmmWarning in fmmWarnings:
@@ -427,18 +440,19 @@ def checkOneFile(path, validationFormat=config.VALIDATION_FORMAT,
     except Exception as ex:
         fileIsValid = False
         success = False
-        exceptionType = type(ex)
+        reportRequest = ", please report to developers by creating " + \
+                        "an issue at https://github.com/openpreserve/jpylyzer/issues"
 
-        if exceptionType == MemoryError:
+        if isinstance(ex, MemoryError):
             failureMessage = "memory error (file size too large)"
-        elif exceptionType == IOError:
-            failureMessage = "I/O error (cannot open file)"
-        elif exceptionType == RuntimeError:
-            failureMessage = "runtime error, please report to developers by creating " + \
-                             "an issue at https://github.com/openpreserve/jpylyzer/issues"
+        elif isinstance(ex, OSError):
+            failureMessage = "I/O error (cannot open file: " + str(ex.strerror) + ")"
+        elif isinstance(ex, RuntimeError):
+            failureMessage = "runtime error (" + type(ex).__name__ + ": " + \
+                str(ex) + ")" + reportRequest
         else:
-            failureMessage = "unknown error, please report to developers by creating " + \
-                             "an issue at https://github.com/openpreserve/jpylyzer/issues"
+            failureMessage = "unknown error (" + type(ex).__name__ + ": " + \
+                str(ex) + ")" + reportRequest
 
         tests = ET.Element("tests")
         characteristics = ET.Element("properties")
@@ -446,8 +460,17 @@ def checkOneFile(path, validationFormat=config.VALIDATION_FORMAT,
         warnings.appendChildTagWithText("warning", failureMessage)
         shared.printWarning(failureMessage)
 
-    if mixFlag != 0 and fileIsValid:
-        mixProperties = mix.Mix(mixFlag).generateMix(characteristics)
+    mixProperties = None
+    if mixFlag != 0 and fileIsValid and validationFormat in ['jp2', 'jph']:
+        try:
+            mixProperties = mix.Mix(mixFlag).generateMix(characteristics)
+        except (AttributeError, TypeError, ValueError) as ex:
+            # A property MIX relies on is missing or malformed: report it for
+            # this file instead of aborting the whole run
+            msg = "could not generate MIX properties (" + type(ex).__name__ + ": " + \
+                str(ex) + ")"
+            warnings.appendChildTagWithText("warning", msg)
+            shared.printWarning(msg)
 
     # Add status info
     statusInfo.appendChildTagWithText("success", str(success))
@@ -467,22 +490,11 @@ def checkOneFile(path, validationFormat=config.VALIDATION_FORMAT,
     extension = ET.Element('propertiesExtension')
     if mixFlag != 0:
         root.append(extension)
-        if validationFormat in ['jp2', 'jph'] and fileIsValid:
+        if mixProperties is not None:
             extension.append(mixProperties)
     root.append(warnings)
 
     return root
-
-
-def checkNullArgs(args):
-    """Check if the passed args list.
-
-    Exits program if invalid or no input argument is supplied.
-    """
-    if not args:
-        print('')
-        PARSER.print_help()
-        sys.exit(config.ERR_CODE_NO_IMAGES)
 
 
 def checkNoInput(files):
@@ -495,11 +507,12 @@ def checkNoInput(files):
         sys.exit(config.ERR_CODE_NO_IMAGES)
 
 
-def printHelpAndExit():
-    """Print help message and exit."""
-    print('')
-    PARSER.print_help()
-    sys.exit()
+def escapeXmlInvalidCharacters(ustring):
+    """Replace characters that XML 1.0 cannot represent (C0 controls other than
+    tab, newline and carriage return, and U+FFFE/U+FFFF) by a \\xNN or \\uNNNN
+    escape, so the string stays identifiable."""
+    return XML_INVALID_CHARACTERS.sub(
+        lambda match: match.group().encode("unicode_escape").decode("ascii"), ustring)
 
 
 def stripSurrogatePairs(ustring):
@@ -514,6 +527,20 @@ def stripSurrogatePairs(ustring):
         ustring = tmp.decode('utf-8', 'ignore')
 
     return ustring
+
+
+def uniqueFiles(paths):
+    """Return paths without repeats of the same path, keeping the first.
+    Paths are compared after making them absolute and normalised, but links are
+    not resolved, so each explicitly named link is still reported."""
+    seen = set()
+    unique = []
+    for path in paths:
+        absolutePath = os.path.abspath(path)
+        if absolutePath not in seen:
+            seen.add(absolutePath)
+            unique.append(path)
+    return unique
 
 
 def getFiles(searchpattern):
@@ -610,7 +637,6 @@ def findFiles(recurse, paths):
                 pathAndFilePattern = os.path.split(root)
                 path = pathAndFilePattern[0]
                 filePattern = pathAndFilePattern[1]
-                filenameAndExtension = os.path.splitext(filePattern)
                 # input path contains wildcard
                 if WILDCARD in path:
                     filepath = glob.glob(path)
@@ -626,10 +652,6 @@ def findFiles(recurse, paths):
                 # file name or extension contains wildcard
                 elif WILDCARD in filePattern:
                     getFilesWithPatternFromTree(path, filePattern)
-                elif WILDCARD in filenameAndExtension:
-                    filenameAndExtension = os.path.splitext(filePattern)
-                    extension = WILDCARD + filenameAndExtension[1]
-                    getFilesWithPatternFromTree(path, extension)
             # get files in the current folder and sub dirs w/o wildcard in path
             elif os.path.isdir(root):
                 getFilesFromTree(root)
@@ -664,8 +686,12 @@ def checkFiles(recurse, paths):
     # Schema location
     locSchemaString = LOC_SCHEMA_STRING_2
 
-    # Find existing files in the given input path(s)
+    # Find existing files in the given input path(s). Files found by an
+    # earlier call (e.g. through the API) must not be checked again, and
+    # overlapping inputs must not report a file twice
+    EXISTING_FILES.clear()
     findFiles(recurse, paths)
+    EXISTING_FILES[:] = uniqueFiles(EXISTING_FILES)
 
     # If there are no valid input files then exit program
     checkNoInput(EXISTING_FILES)
@@ -771,12 +797,8 @@ def main():
     # Get input from command line
     args = parseCommandLine()
 
-    # Input images
+    # Input images (argparse requires at least one)
     jp2In = args.jp2In
-
-    # Print help message and exit if jp2In is empty
-    if not jp2In:
-        printHelpAndExit()
 
     # Makes user-specified flags available to any module that imports 'config.py'
     # (here: 'boxvalidator.py')
@@ -788,10 +810,6 @@ def main():
     config.VALIDATION_FORMAT = args.fmt.lower()
     config.MIX_FLAG = args.mixFlag
 
-    # Exit in case of unsupported Python version
-    if config.PYTHON_VERSION.startswith("2"):
-        msg = "Jpylyzer needs Python 3.x (Python 2.7 is no longer supported)"
-        shared.errorExit(msg)
     # Exit if validation format is unknown
     if config.VALIDATION_FORMAT not in ['jp2', 'jph', 'j2c', 'jhc']:
         msg = "'" + config.VALIDATION_FORMAT + "'  is not a supported value for --format"

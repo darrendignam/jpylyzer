@@ -5,6 +5,8 @@ Shared functions for jpylyzer sub-modules
 
 import sys
 
+from . import config
+
 
 def printWarning(msg):
     """Print warning to stderr."""
@@ -16,4 +18,4 @@ def errorExit(msg):
     """Print error message to stderr and exit."""
     msgString = "Error: " + msg + "\n"
     sys.stderr.write(msgString)
-    sys.exit()
+    sys.exit(config.ERR_CODE_INVALID_INPUT)

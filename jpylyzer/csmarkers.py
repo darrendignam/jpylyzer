@@ -10,6 +10,10 @@ from . import byteconv as bc
 from .validator import Validator
 
 
+# Largest integer that every XML Schema processor accepts as xs:integer
+MAX_REPORTED_INTEGER = 2 ** 63 - 1
+
+
 class CSMarkerValidator(Validator):
     """Validator class for codestream marker segments
     Note that the 'boxType' variable actually represents
@@ -41,6 +45,16 @@ class CSMarkerValidator(Validator):
         self.bTypeString = bType
 
     # Validator functions for codestream markers and marker segments
+
+    @staticmethod
+    def _codeBlockSize(exponent):
+        """Code-block width or height for its exponent (stored offset + 2), or
+        -9999 if the exponent could not be read from a truncated segment or is
+        outside the allowed range 2-10 (a stored 255 would otherwise give a
+        78-digit number, which some XML schema validators reject)."""
+        if not 2 <= exponent <= 10:
+            return -9999
+        return 2 ** exponent
 
     def validate_siz(self):
         """Image and tile size (SIZ) header fields (ISO/IEC 15444-1 Section A.5.1;
@@ -105,6 +119,8 @@ class CSMarkerValidator(Validator):
                 capability = "Scalable 4K digital cinema profile"
             elif mainLevel == 7:
                 capability = "Long-term storage profile"
+            else:
+                capability = "Unknown (value not defined in ISO/IEC 15444-1)"
         elif profile == 1:
             capability = "Broadcast Contribution Single Tile Profile, Mainlevel " + \
                 str(mainLevel)
@@ -127,7 +143,7 @@ class CSMarkerValidator(Validator):
             capability = "2k IMF Single/Multi Tile Reversible Profile, Mainlevel " + \
                 str(mainLevel) + "; Sublevel " + str(subLevel)
         elif profile == 8:
-            rsiz = "4k IMF Single/Multi Tile Reversible Profile, Mainlevel " + \
+            capability = "4k IMF Single/Multi Tile Reversible Profile, Mainlevel " + \
                 str(mainLevel) + "; Sublevel " + str(subLevel)
         elif profile == 9:
             capability = "8k IMF Single/Multi Tile Reversible Profile, Mainlevel " + \
@@ -197,12 +213,22 @@ class CSMarkerValidator(Validator):
         # yTOsiz must be within range 0 - (2**32)-2
         self.testFor("yTOsizIsValid", 0 <= yTOsiz <= (2 ** 32) - 2)
 
+        # Relations between the fields (Section A.5.1): the image area is not
+        # empty, the tile grid starts at or before the image area, and the
+        # first tile overlaps the image area
+        self.testFor("imageAreaIsValid", xOsiz < xsiz and yOsiz < ysiz)
+        self.testFor("tileOffsetIsValid", xTOsiz <= xOsiz and yTOsiz <= yOsiz)
+        self.testFor("firstTileOverlapsImageArea",
+                     xTsiz + xTOsiz > xOsiz and yTsiz + yTOsiz > yOsiz)
+
         # Number of tiles
         if xTsiz != 0 and yTsiz != 0:
             # If block to prevent zero-division (which should not happen
             # for valid files)
-            numberOfTilesX = math.ceil((xsiz - xTOsiz) / xTsiz)
-            numberOfTilesY = math.ceil((ysiz - yTOsiz) / yTsiz)
+            # Clamp at 0: with a tile offset beyond the image both factors are
+            # negative, and their product would be a positive tile count
+            numberOfTilesX = max(math.ceil((xsiz - xTOsiz) / xTsiz), 0)
+            numberOfTilesY = max(math.ceil((ysiz - yTOsiz) / yTsiz), 0)
             numberOfTiles = int(numberOfTilesX * numberOfTilesY)
         else:
             # Bogus value
@@ -354,7 +380,8 @@ class CSMarkerValidator(Validator):
         # value)
         codeBlockWidthExponent = bc.bytesToUnsignedChar(
             self.boxContents[8:9]) + 2
-        self.addCharacteristic("codeBlockWidth", 2 ** codeBlockWidthExponent)
+        self.addCharacteristic("codeBlockWidth",
+                               self._codeBlockSize(codeBlockWidthExponent))
 
         # Value within range 2-10
         codeBlockWidthExponentIsValid = 2 <= codeBlockWidthExponent <= 10
@@ -365,7 +392,8 @@ class CSMarkerValidator(Validator):
         # value)
         codeBlockHeightExponent = bc.bytesToUnsignedChar(
             self.boxContents[9:10]) + 2
-        self.addCharacteristic("codeBlockHeight", 2 ** codeBlockHeightExponent)
+        self.addCharacteristic("codeBlockHeight",
+                               self._codeBlockSize(codeBlockHeightExponent))
 
         # Value within range 2-10
         codeBlockHeightExponentIsValid = 2 <= codeBlockHeightExponent <= 10
@@ -492,15 +520,14 @@ class CSMarkerValidator(Validator):
         if self.csiz < 257:
             # Index of component to which this marker relates
             ccoc = bc.bytesToUnsignedChar(self.boxContents[2:3])
-            ccocIsValid = 0 <= ccoc <= 255
             offset = 3
         else:
             ccoc = bc.bytesToUShortInt(self.boxContents[2:4])
-            ccocIsValid = 0 <= ccoc <= 16383
             offset = 4
 
         self.addCharacteristic("ccoc", ccoc)
-        self.testFor("ccocIsValid", ccocIsValid)
+        # Must refer to an existing component
+        self.testFor("ccocIsValid", 0 <= ccoc < self.csiz)
 
         # Coding style for this component
         scoc = bc.bytesToUnsignedChar(self.boxContents[offset:offset + 1])
@@ -541,7 +568,8 @@ class CSMarkerValidator(Validator):
         # value)
         codeBlockWidthExponent = bc.bytesToUnsignedChar(
             self.boxContents[offset:offset + 1]) + 2
-        self.addCharacteristic("codeBlockWidth", 2 ** codeBlockWidthExponent)
+        self.addCharacteristic("codeBlockWidth",
+                               self._codeBlockSize(codeBlockWidthExponent))
 
         # Value within range 2-10
         codeBlockWidthExponentIsValid = 2 <= codeBlockWidthExponent <= 10
@@ -554,7 +582,8 @@ class CSMarkerValidator(Validator):
         # value)
         codeBlockHeightExponent = bc.bytesToUnsignedChar(
             self.boxContents[offset:offset + 1]) + 2
-        self.addCharacteristic("codeBlockHeight", 2 ** codeBlockHeightExponent)
+        self.addCharacteristic("codeBlockHeight",
+                               self._codeBlockSize(codeBlockHeightExponent))
 
         # Value within range 2-10
         codeBlockHeightExponentIsValid = 2 <= codeBlockHeightExponent <= 10
@@ -680,8 +709,8 @@ class CSMarkerValidator(Validator):
         lrgn = bc.bytesToUShortInt(self.boxContents[0:2])
         self.addCharacteristic("lrgn", lrgn)
 
-        # lrgn must be in range 5-6
-        lrgnIsValid = 5 <= lrgn <= 6
+        # lrgn must be 5 (csiz < 257) or 6 (2-byte component index)
+        lrgnIsValid = lrgn == (5 if self.csiz < 257 else 6)
         self.testFor("lrgnIsValid", lrgnIsValid)
 
         # Size of following field and offset of fields that follow it depend on
@@ -689,15 +718,14 @@ class CSMarkerValidator(Validator):
         if self.csiz < 257:
             # Index of component to which this marker relates
             crgn = bc.bytesToUnsignedChar(self.boxContents[2:3])
-            crgnIsValid = 0 <= crgn <= 255
             offset = 3
         else:
             crgn = bc.bytesToUShortInt(self.boxContents[2:4])
-            crgnIsValid = 0 <= crgn <= 16383
             offset = 4
 
         self.addCharacteristic("crgn", crgn)
-        self.testFor("crgnIsValid", crgnIsValid)
+        # Must refer to an existing component
+        self.testFor("crgnIsValid", 0 <= crgn < self.csiz)
 
         # ROI style for the current ROI
         roiStyle = bc.bytesToUnsignedChar(self.boxContents[offset:offset + 1])
@@ -718,6 +746,43 @@ class CSMarkerValidator(Validator):
             roiShiftIsValid = 0 <= roiShift <= 255
 
         self.testFor("roiShiftIsValid", roiShiftIsValid)
+
+    def _addQuantizationValues(self, qStyle, length, offset, testName):
+        """Report the SPqcd/SPqcc values of a QCD/QCC marker segment, which start
+        at offset, and test that the segment length matches the quantization
+        style (ISO/IEC 15444-1 Eq A-4, A-5).
+
+        Styles 0 and 2 have one value per subband: 3 * (number of decomposition
+        levels) + 1, in codestream order (NL LL, then HL, LH, HH from level NL
+        down to 1). Style 1 has a single value.
+        """
+        noValueBytes = length - offset
+        # Don't read beyond a truncated segment
+        available = min(length, len(self.boxContents)) - offset
+
+        if qStyle == 0:
+            # One byte per subband: 5 most significant bits -> exponent epsilon in Eq E-5
+            for spq in self.boxContents[offset:offset + available]:
+                self.addCharacteristic("epsilon", (spq >> 3) & 31)
+            self.testFor(testName, noValueBytes >= 1 and (noValueBytes - 1) % 3 == 0)
+
+        elif qStyle in [1, 2]:
+            # Two bytes per value: 11 least significant bits -> mu, 5 most
+            # significant bits -> exponent epsilon in Eq E-3
+            noValues = max(available, 0) // 2
+            if qStyle == 1:
+                noValues = min(noValues, 1)
+            for i in range(noValues):
+                spq = bc.bytesToUShortInt(
+                    self.boxContents[offset + 2 * i:offset + 2 * i + 2])
+                self.addCharacteristic("mu", spq & 2047)
+                self.addCharacteristic("epsilon", (spq >> 11) & 31)
+
+            if qStyle == 1:
+                self.testFor(testName, noValueBytes == 2)
+            else:
+                self.testFor(testName, noValueBytes >= 2 and noValueBytes % 2 == 0 and
+                             (noValueBytes // 2 - 1) % 3 == 0)
 
     def validate_qcd(self):
         """Quantization default (QCD) header fields (ISO/IEC 15444-1 Section A.6.4)."""
@@ -747,54 +812,8 @@ class CSMarkerValidator(Validator):
         guardBits = (sqcd >> 5) & 7
         self.addCharacteristic("guardBits", guardBits)
 
-        # Get number of decomposition levels from re-arrranged form of Eq A-4
-        # (TODO: cross-check with info from COD, COC, see:
-        # https://github.com/openpreserve/jpylyzer/issues/132)
-        if qStyle == 0:
-            levels = int((lqcd - 4) / 3)
-        elif qStyle == 2:
-            levels = int((lqcd - 5) / 6)
-
-        offset = 3
-
-        if qStyle == 0:
-            for _ in range(levels):
-                spqcd = bc.bytesToUnsignedChar(
-                    self.boxContents[offset:offset + 1])
-
-                # 5 most significant bits -> exponent epsilon in Eq E-5
-                epsilon = (spqcd >> 3) & 31
-                self.addCharacteristic("epsilon", epsilon)
-
-                offset += 1
-
-        elif qStyle == 1:
-            spqcd = bc.bytesToUShortInt(self.boxContents[offset:offset + 2])
-            # 11 least significant bits: mu in Eq E-3
-            mu = spqcd & 2047
-            self.addCharacteristic("mu", mu)
-
-            # 5 most significant bits: exponent epsilon in Eq E-3
-            epsilon = (spqcd >> 11) & 31
-            self.addCharacteristic("epsilon", epsilon)
-
-        elif qStyle == 2:
-            for _ in range(levels):
-                spqcd = bc.bytesToUShortInt(
-                    self.boxContents[offset:offset + 2])
-
-                # 11 least significant bits: mu in Eq E-3
-                mu = spqcd & 2047
-                self.addCharacteristic("mu", mu)
-
-                # 5 most significant bits: exponent epsilon in Eq E-3
-                epsilon = (spqcd >> 11) & 31
-                self.addCharacteristic("epsilon", epsilon)
-
-                offset += 2
-
-        # Possible enhancement here: instead of reporting coefficients, report result
-        # of corresponding equations (need Annex E from standard for that)
+        # Quantization values for each subband
+        self._addQuantizationValues(qStyle, lqcd, 3, "lqcdConsistentWithQStyle")
 
     def validate_qcc(self):
         """Quantization component (QCC) header fields (ISO/IEC 15444-1 Section A.6.5)."""
@@ -817,6 +836,8 @@ class CSMarkerValidator(Validator):
             offset = 4
 
         self.addCharacteristic("cqcc", cqcc)
+        # Must refer to an existing component
+        self.testFor("cqccIsValid", 0 <= cqcc < self.csiz)
 
         # Quantization style for this component
         sqcc = bc.bytesToUnsignedChar(self.boxContents[offset:offset + 1])
@@ -836,61 +857,8 @@ class CSMarkerValidator(Validator):
         guardBits = (sqcc >> 5) & 7
         self.addCharacteristic("guardBits", guardBits)
 
-        # Get number of decomposition levels from re-arrranged form of Eq A-5
-        # (TODO: cross-check with info from COD, COC, see:
-        # https://github.com/openpreserve/jpylyzer/issues/132)
-        if qStyle == 0 and self.csiz < 257:
-            levels = int((lqcc - 4) / 3)
-        elif qStyle == 2:
-            levels = int((lqcc - 5) / 6)
-
-        if qStyle == 0 and self.csiz < 257:
-            levels = int((lqcc - 5) / 3)
-        elif qStyle == 2 and self.csiz < 257:
-            levels = int((lqcc - 6) / 6)
-        elif qStyle == 0 and self.csiz >= 257:
-            levels = int((lqcc - 6) / 3)
-        elif qStyle == 2 and self.csiz >= 257:
-            levels = int((lqcc - 7) / 6)
-
-        if qStyle == 0:
-            for _ in range(levels):
-                spqcc = bc.bytesToUnsignedChar(
-                    self.boxContents[offset:offset + 1])
-
-                # 5 most significant bits -> exponent epsilon in Eq E-5
-                epsilon = (spqcc >> 3) & 31
-                self.addCharacteristic("epsilon", epsilon)
-
-                offset += 1
-
-        elif qStyle == 1:
-            spqcc = bc.bytesToUShortInt(self.boxContents[offset:offset + 2])
-            # 11 least significant bits: mu in Eq E-3
-            mu = spqcc & 2047
-            self.addCharacteristic("mu", mu)
-
-            # 5 most significant bits: exponent epsilon in Eq E-3
-            epsilon = (spqcc >> 11) & 31
-            self.addCharacteristic("epsilon", epsilon)
-
-        elif qStyle == 2:
-            for _ in range(levels):
-                spqcc = bc.bytesToUShortInt(
-                    self.boxContents[offset:offset + 2])
-
-                # 11 least significant bits: mu in Eq E-3
-                mu = spqcc & 2047
-                self.addCharacteristic("mu", mu)
-
-                # 5 most significant bits: exponent epsilon in Eq E-3
-                epsilon = (spqcc >> 11) & 31
-                self.addCharacteristic("epsilon", epsilon)
-
-                offset += 2
-
-        # Possible enhancement here: instead of reporting coefficients, report result
-        # of corresponding equations (need Annex E from standard for that)
+        # Quantization values for each subband
+        self._addQuantizationValues(qStyle, lqcc, offset + 1, "lqccConsistentWithQStyle")
 
     def validate_poc(self):
         """Progression order change (POC) header fields (ISO/IEC 15444-1 Section A.6.6)."""
@@ -898,8 +866,10 @@ class CSMarkerValidator(Validator):
         lpoc = bc.bytesToUShortInt(self.boxContents[0:2])
         self.addCharacteristic("lpoc", lpoc)
 
-        # lpoc must be in range 9-65,535
-        lpocIsValid = 9 <= lpoc <= 65535
+        # lpoc must be 2 plus a whole, non-zero number of progression order
+        # changes of 7 bytes (csiz < 257) or 9 bytes each (Eq A-6)
+        changeSize = 7 if self.csiz < 257 else 9
+        lpocIsValid = 2 + changeSize <= lpoc <= 65535 and (lpoc - 2) % changeSize == 0
         self.testFor("lpocIsValid", lpocIsValid)
 
         # Get number of progression order changes from re-arranged form of Eq
@@ -983,8 +953,8 @@ class CSMarkerValidator(Validator):
         lcrg = bc.bytesToUShortInt(self.boxContents[0:2])
         self.addCharacteristic("lcrg", lcrg)
 
-        # lcrg must be in range 6-65534
-        lcrgIsValid = 6 <= lcrg <= 65534
+        # lcrg must equal 2 + 4 * csiz (one Xcrg, Ycrg pair per component)
+        lcrgIsValid = lcrg == 2 + 4 * self.csiz
         self.testFor("lcrgIsValid", lcrgIsValid)
 
         offset = 2
@@ -1068,9 +1038,11 @@ class CSMarkerValidator(Validator):
         # Pcap
         pcap = bc.bytesToUInt(self.boxContents[2:6])
 
-        # Extract values of individual bits in pcap to list
+        # Extract values of individual bits in pcap to list (none if pcap
+        # could not be read)
         numBits = 32
-        pcapBits = [(pcap >> bit) & 1 for bit in range(numBits - 1, -1, -1)]
+        pcapBits = [(pcap >> bit) & 1 for bit in range(numBits - 1, -1, -1)] \
+            if pcap != -9999 else []
 
         # List of all referenced ISO parts.
         pcapParts = []
@@ -1087,7 +1059,7 @@ class CSMarkerValidator(Validator):
         noccaps = len(pcapParts)
 
         # Test if noccaps is consistent with lcap
-        self.testFor("lcapIsValid", noccaps == (lcap - 6) / 2)
+        self.testFor("lcapIsValid", pcap != -9999 and noccaps == (lcap - 6) / 2)
 
         # Iterate over all ccap values and put them in a list
         ccaps = []
@@ -1154,22 +1126,18 @@ class CSMarkerValidator(Validator):
         # lprf  must be within range 4-65534
         self.testFor("lprfIsValid", 4 <= lprf <= 65534)
 
-        # Number of pprf entries
-        nopprfs = int((lprf - 2) / 2)
+        # Pprf values, as far as they are present in the segment
+        pprfs = self._profileWords(lprf)
 
-        # Profile number (updated from pprf values below)
-        PRFnum = 4095
-        offset = 2
+        # Profile number
+        PRFnum = 4095 + sum(pprf << (16 * i) for i, pprf in enumerate(pprfs))
 
-        for i in range(nopprfs):
-            pprf = bc.bytesToUShortInt(self.boxContents[offset:offset + 2])
-            PRFnum += pprf * 2 ** (16 * i)
-            if i == nopprfs:
-                # last pprf shall not be zero
-                self.testFor("pprfIsValid", pprf != 0)
+        if pprfs:
+            # last pprf shall not be zero
+            self.testFor("pprfIsValid", pprfs[-1] != 0)
 
         self.testFor("PRFnumIsValid", PRFnum > 4095)
-        self.addCharacteristic("PRFnum", PRFnum)
+        self.addCharacteristic("PRFnum", self._reportableProfileNumber("PRFnum", PRFnum))
 
     def validate_cpf(self):
         """Corresponding profile (CPF) marker segment (15444-15, Section A.6)."""
@@ -1180,24 +1148,35 @@ class CSMarkerValidator(Validator):
 
         # lcpf  must be within range 4-65534
         if self.format in ['jph', 'jhc']:
-            self.testFor("lcpIsValid", 4 <= lcpf <= 65534)
+            self.testFor("lcpfIsValid", 4 <= lcpf <= 65534)
 
-        # Number of pcpf entries
-        nopcpfs = int((lcpf - 2) / 2)
+        # Pcpf values, as far as they are present in the segment
+        pcpfs = self._profileWords(lcpf)
 
-        # Profile number (updated from ppf values below)
-        CPFnum = -1
-        offset = 2
+        # Profile number
+        CPFnum = -1 + sum(pcpf << (16 * i) for i, pcpf in enumerate(pcpfs))
 
-        for i in range(nopcpfs):
-            pcpf = bc.bytesToUShortInt(self.boxContents[offset:offset + 2])
-            CPFnum += pcpf * 2 ** (16 * i)
-            if i == nopcpfs:
-                # last pcpf shall not be zero
-                if self.format in ['jph', 'jhc']:
-                    self.testFor("pcpfIsValid", pcpf != 0)
+        if pcpfs and self.format in ['jph', 'jhc']:
+            # last pcpf shall not be zero
+            self.testFor("pcpfIsValid", pcpfs[-1] != 0)
 
-        self.addCharacteristic("CPFnum", CPFnum)
+        self.addCharacteristic("CPFnum", self._reportableProfileNumber("CPFnum", CPFnum))
+
+    def _profileWords(self, length):
+        """16-bit Pprf/Pcpf words of a PRF or CPF segment with length field
+        length, leaving out any that the segment declares but does not contain."""
+        end = min(length, len(self.boxContents))
+        return [bc.bytesToUShortInt(self.boxContents[offset:offset + 2])
+                for offset in range(2, end - 1, 2)]
+
+    def _reportableProfileNumber(self, name, number):
+        """Profile number, or -9999 with a warning if it exceeds the 64-bit
+        range that XML Schema processors accept for xs:integer (a segment can
+        hold up to 32766 words, which no profile needs)."""
+        if number > MAX_REPORTED_INTEGER:
+            self.addWarning(name + " too large to report (more than 64 bits)")
+            return -9999
+        return number
 
     def validate_sot(self):
         """Start of tile-part (SOT) marker segment (ISO/IEC 15444-1 Section A.4.2)."""
@@ -1269,26 +1248,19 @@ class CSMarkerValidator(Validator):
         ttlmLength = st
         ptlmLength = (sp + 1) * 2
 
-        # Calculate number of tile parts from ltlm, st and sp, following Eq A-7
-        if st == 0 and sp == 0:
-            tpCount = (ltlm - 4) / 2
-        elif st == 1 and sp == 0:
-            tpCount = (ltlm - 4) / 3
-        elif st == 2 and sp == 0:
-            tpCount = (ltlm - 4) / 4
-        elif st == 0 and sp == 1:
-            tpCount = (ltlm - 4) / 4
-        elif st == 1 and sp == 1:
-            tpCount = (ltlm - 4) / 5
-        elif st == 2 and sp == 1:
-            tpCount = (ltlm - 4) / 6
+        # Calculate number of tile parts from ltlm, st and sp, following Eq A-7:
+        # each tile-part takes st bytes of Ttlm and (sp + 1) * 2 bytes of Ptlm
+        if st in [0, 1, 2]:
+            entrySize = ttlmLength + ptlmLength
+            tpCount = int((ltlm - 4) / entrySize)
+            ltlmIsValid = (ltlm - 4) % entrySize == 0
         else:
-            # Bogus value in case of unexpected st, sp values
+            # Bogus value in case of unexpected st values (tlmStIsValid fails)
             tpCount = 0
+            ltlmIsValid = True
 
-        ltlmIsValid = tpCount.is_integer()
         self.testFor("ltlmIsValid", ltlmIsValid)
-        self.addCharacteristic("tpCount", int(tpCount))
+        self.addCharacteristic("tpCount", tpCount)
 
         if ltlmIsValid:
             offset = 4
@@ -1324,7 +1296,8 @@ class CSMarkerValidator(Validator):
     def validate_plm(self):
         """Packet length, main header (PLM) marker segment (ISO/IEC 15444-1 Section A.7.2).
 
-        Currently performs no validation, just adds details to properties XML.
+        The segment holds one Nplm, Iplm group per tile-part; each group is
+        reported as an nplm, iplm pair.
         """
         # Length of PLM marker
         lplm = bc.bytesToUShortInt(self.boxContents[0:2])
@@ -1334,13 +1307,21 @@ class CSMarkerValidator(Validator):
         zplm = bc.bytesToUnsignedChar(self.boxContents[2:3])
         self.addCharacteristic("zplm", zplm)
 
-        # Number of bytes of Iplm information for the ith tile-part
-        nplm = bc.bytesToUnsignedChar(self.boxContents[3:4])
-        self.addCharacteristic("nplm", nplm)
+        end = min(lplm, len(self.boxContents))
+        offset = 3
+        while offset < end:
+            # Number of bytes of Iplm information for the ith tile-part
+            nplm = bc.bytesToUnsignedChar(self.boxContents[offset:offset + 1])
+            self.addCharacteristic("nplm", nplm)
+            groupEnd = offset + 1 + nplm
+            self.testFor("nplmIsValid", groupEnd <= end)
 
-        # Comma separated list of packet lengths
-        iplm = self._parse_ipl(lplm, 4)
-        self.addCharacteristic("iplm", iplm)
+            # Comma separated list of packet lengths
+            iplm, iplmIsValid = self._parse_ipl(groupEnd, offset + 1)
+            self.addCharacteristic("iplm", iplm)
+            self.testFor("iplmIsValid", iplmIsValid)
+
+            offset = groupEnd
 
     def validate_plt(self):
         """Packet length, tile-part header (PLT) marker segment (ISO/IEC 15444-1 Section A.7.3).
@@ -1356,8 +1337,9 @@ class CSMarkerValidator(Validator):
         self.addCharacteristic("zplt", zplt)
 
         # Comma separated list of packet lengths
-        iplt = self._parse_ipl(lplt, 3)
+        iplt, ipltIsValid = self._parse_ipl(lplt, 3)
         self.addCharacteristic("iplt", iplt)
+        self.testFor("ipltIsValid", ipltIsValid)
 
     def validate_ppm(self):
         """Empty function."""
