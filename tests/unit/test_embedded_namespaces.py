@@ -48,7 +48,8 @@ def embedded(result, inUuidBox):
 
 @pytest.mark.parametrize("inUuidBox", [False, True])
 @pytest.mark.parametrize("uri", ["http://ns.adobe.com/photoshop/1.0/", "urn:example:a",
-                                 "http://example.org/a%20b", "adobe:ns:meta/"])
+                                 "http://example.org/a%20b", "adobe:ns:meta/",
+                                 "http://[::1]/ns", "http://[2001:db8::7]:8080/a"])
 def test_valid_namespace_is_embedded(tmp_path, uri, inUuidBox):
     xml = f'<x:root xmlns:x="{uri}"><x:a>1</x:a></x:root>'.encode()
     result = checkOneFile(balloon_with(tmp_path, xml, inUuidBox))
@@ -62,6 +63,7 @@ def test_valid_namespace_is_embedded(tmp_path, uri, inUuidBox):
     '<root xmlns="not a uri"/>',
     '<root xmlns:x="http://example.org/%zz" x:attribute="1"/>',
     '<root xmlns:x="http://example.org/café"><x:a/></root>',
+    '<root xmlns="http://example.org/[a]"/>',
 ])
 def test_invalid_namespace_is_not_embedded(tmp_path, xml, inUuidBox):
     result = checkOneFile(balloon_with(tmp_path, xml.encode("utf-8"), inUuidBox))
