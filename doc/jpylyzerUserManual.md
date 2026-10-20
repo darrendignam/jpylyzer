@@ -981,6 +981,14 @@ represented as child elements in the properties tree:
 |noMoreThanOneResolutionBox|Box contains no more than one Resolution box|
 |colourSpecificationBoxesAreContiguous|In case of multiple Colour Specification boxes, they appear contiguously in the JP2 Header box|
 |paletteAndComponentMappingBoxesOnlyTogether|Box contains a Palette box (only if Component Mapping box is present); box contains a Component Mapping box (only if Palette box is present)|
+|bitsPerComponentBoxOnlyIfBPCIs255 (if JP2 Header box contains a Bits Per Component box)|*bPC* field in Image Header box equals 255 (components vary in bit depth)|
+|bPCValuesConsistentWithNC (if JP2 Header box contains a Bits Per Component box)|Bits Per Component box contains one value for each component (*nC*)|
+|cMPValuesConsistentWithNC (if JP2 Header box contains a Component Mapping box)|All *cMP* values are smaller than the number of components (*nC*)|
+|pColValuesConsistentWithNPC (if JP2 Header box contains a Component Mapping box and a Palette box)|All *pCol* values of palette mappings (*mTyp* = 1) are smaller than the number of palette columns (*nPC*)|
+|cNValuesConsistentWithChannels (if JP2 Header box contains a Channel Definition box)|All *cN* values are smaller than the number of channels (number of Component Mapping entries, or *nC* if there is no Component Mapping box)|
+|cNValuesUnique (if JP2 Header box contains a Channel Definition box)|No channel is described more than once|
+|colourChannelsConsistentWithColourSpace (JP2 only, if JP2 Header box contains a Channel Definition box and the colourspace is known)|There is exactly one colour channel (*cTyp* = 0) for each colour of the colourspace, associated with that colour (*cAssoc* 1 to the number of colours)|
+|numberOfChannelsConsistentWithColourSpace (JP2 only, if there is no Channel Definition box and the colourspace is known)|Number of channels is at least the number of colours of the colourspace|
 |noZeroCTypesIfNoColourBox|If file does not contain a Colour Specification Box, no cTyp values (from Channel definition box) shall be equal to 0 (JPH)|
 
 Image Header box (child of JP2 Header box) {#image-header-box}
@@ -1631,6 +1639,7 @@ performs a number of tests to verify the consistency between these two.
 |containsJP2HeaderBox|File root contains a JP2 Header box|
 |containsContiguousCodestreamBox|File root contains a Contiguous Codestream box|
 |containsIntellectualPropertyBox|File root contains an Intellectual Property box, which is required if *iPR* field in Image Header Box equals 1 (test is skipped otherwise)|
+|noIntellectualPropertyBoxIfIPRIsZero|File does not contain an Intellectual Property box if *iPR* in Image Header box equals 0|
 |firstBoxIsSignatureBox|First box is JPEG 2000 Signature box|
 |secondBoxIsFileTypeBox|Second box is File Type box|
 |locationJP2HeaderBoxIsValid|JP2 Header box is located after File Type Box and before (first) Contiguous Codestream box|
