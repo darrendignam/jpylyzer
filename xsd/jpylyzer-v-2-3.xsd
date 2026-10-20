@@ -349,25 +349,25 @@
   <xs:element name="polarity" type="xs:string"/>
   <xs:element name="colour" type="xs:string"/>
   <xs:element name="renderingIntent" type="xs:string"/>
-  <xs:element name="connectionSpaceIlluminantX" type="xs:decimal"/>
-  <xs:element name="connectionSpaceIlluminantY" type="xs:decimal"/>
-  <xs:element name="connectionSpaceIlluminantZ" type="xs:decimal"/>
+  <xs:element name="connectionSpaceIlluminantX" type="xs:double"/>
+  <xs:element name="connectionSpaceIlluminantY" type="xs:double"/>
+  <xs:element name="connectionSpaceIlluminantZ" type="xs:double"/>
   <xs:element name="profileCreator" type="xs:string"/>
   <xs:element name="profileID" type="xs:string"/>
   <xs:element name="description" type="xs:string"/>
   <xs:element name="copyright" type="xs:string"/>
-  <xs:element name="mediaWhitePointX" type="xs:decimal"/>
-  <xs:element name="mediaWhitePointY" type="xs:decimal"/>
-  <xs:element name="mediaWhitePointZ" type="xs:decimal"/>
-  <xs:element name="chromaticAdaptationA0" type="xs:decimal"/>
-  <xs:element name="chromaticAdaptationA1" type="xs:decimal"/>
-  <xs:element name="chromaticAdaptationA2" type="xs:decimal"/>
-  <xs:element name="chromaticAdaptationA3" type="xs:decimal"/>
-  <xs:element name="chromaticAdaptationA4" type="xs:decimal"/>
-  <xs:element name="chromaticAdaptationA5" type="xs:decimal"/>
-  <xs:element name="chromaticAdaptationA6" type="xs:decimal"/>
-  <xs:element name="chromaticAdaptationA7" type="xs:decimal"/>
-  <xs:element name="chromaticAdaptationA8" type="xs:decimal"/>
+  <xs:element name="mediaWhitePointX" type="xs:double"/>
+  <xs:element name="mediaWhitePointY" type="xs:double"/>
+  <xs:element name="mediaWhitePointZ" type="xs:double"/>
+  <xs:element name="chromaticAdaptationA0" type="xs:double"/>
+  <xs:element name="chromaticAdaptationA1" type="xs:double"/>
+  <xs:element name="chromaticAdaptationA2" type="xs:double"/>
+  <xs:element name="chromaticAdaptationA3" type="xs:double"/>
+  <xs:element name="chromaticAdaptationA4" type="xs:double"/>
+  <xs:element name="chromaticAdaptationA5" type="xs:double"/>
+  <xs:element name="chromaticAdaptationA6" type="xs:double"/>
+  <xs:element name="chromaticAdaptationA7" type="xs:double"/>
+  <xs:element name="chromaticAdaptationA8" type="xs:double"/>
   <xs:element name="tag" type="xs:string"/>
 
   <xs:element name="paletteBox">
@@ -453,10 +453,10 @@
   <xs:element name="hRcD" type="xs:integer"/>
   <xs:element name="vRcE" type="xs:integer"/>
   <xs:element name="hRcE" type="xs:integer"/>
-  <xs:element name="vRescInPixelsPerMeter" type="xs:decimal"/>
-  <xs:element name="hRescInPixelsPerMeter" type="xs:decimal"/>
-  <xs:element name="vRescInPixelsPerInch" type="xs:decimal"/>
-  <xs:element name="hRescInPixelsPerInch" type="xs:decimal"/>  
+  <xs:element name="vRescInPixelsPerMeter" type="xs:double"/>
+  <xs:element name="hRescInPixelsPerMeter" type="xs:double"/>
+  <xs:element name="vRescInPixelsPerInch" type="xs:double"/>
+  <xs:element name="hRescInPixelsPerInch" type="xs:double"/>  
   
   <xs:element name="displayResolutionBox">
     <xs:complexType>
@@ -481,10 +481,10 @@
   <xs:element name="hRdD" type="xs:integer"/>
   <xs:element name="vRdE" type="xs:integer"/>
   <xs:element name="hRdE" type="xs:integer"/>
-  <xs:element name="vResdInPixelsPerMeter" type="xs:decimal"/>
-  <xs:element name="hResdInPixelsPerMeter" type="xs:decimal"/>
-  <xs:element name="vResdInPixelsPerInch" type="xs:decimal"/>
-  <xs:element name="hResdInPixelsPerInch" type="xs:decimal"/>  
+  <xs:element name="vResdInPixelsPerMeter" type="xs:double"/>
+  <xs:element name="hResdInPixelsPerMeter" type="xs:double"/>
+  <xs:element name="vResdInPixelsPerInch" type="xs:double"/>
+  <xs:element name="hResdInPixelsPerInch" type="xs:double"/>  
   
   <xs:element name="intellectualPropertyBox">
     <xs:complexType>
