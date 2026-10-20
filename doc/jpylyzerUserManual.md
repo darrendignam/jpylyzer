@@ -1120,6 +1120,7 @@ profile is allowed in JP2)!
 |Test name|True if|
 |:--------|:------|
 |methIsValid|*meth* equals 1 (enumerated colourspace) or 2 (restricted ICC profile)|
+|boxLengthIsValid (if meth equals “Enumerated” or “Parameterized”)|Size of box contents equals 7 bytes (enumerated) or 10 bytes (parameterized)|
 |precIsValid|*prec* equals 0|
 |approxIsValid|*approx* equals 0|
 |enumCSIsValid (if meth equals “Enumerated”)|*enumCS* equals 16 (“sRGB”), 17 (“greyscale”) or 18 (“sYCC”)|
@@ -1129,6 +1130,8 @@ profile is allowed in JP2)!
 |colPrimsIsValid|*colPrims* value is defined by ITU-T H.273 / ISO/IEC 23001-8 (JPH)|
 |transfCIsValid|*transfC* value is defined by ITU-T H.273 / ISO/IEC 23001-8 (JPH)|
 |matCoeffsIsValid|*matCoeffs* value is defined by ITU-T H.273 / ISO/IEC 23001-8 (JPH)|
+
+For JP2, only the first Colour Specification box is tested. A JP2 reader ignores any Colour Specification boxes after the first one (ISO/IEC 15444-1 Section I.5.3.3), so their properties are reported, but their tests are left out and a warning is added.
 
 Palette box (child of JP2 Header box) {#palette-box}
 -----------------------------------------
