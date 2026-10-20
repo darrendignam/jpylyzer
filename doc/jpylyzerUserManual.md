@@ -1124,6 +1124,8 @@ profile is allowed in JP2)!
 |chromaticAdaptationA8|Chromatic adaptation matrix coefficient a<sub>8</sub> (extracted from chromaticAdaptationTag)|
 |tag<sup>\*</sup>|Signature of profile tag (repeated for all tags in the profile)|
 
+The profile flags (*embeddedProfile*, *profileCannotBeUsedIndependently*) and device attributes (*transparency*, *glossiness*, *polarity*, *colour*) are read from the bits that ICC.1:2022 defines, counted from the least significant bit. They are reported as -9999 if the ICC header is too short to contain them. If any bits that the ICC reserves are set, a warning is added, as the defined bits may then not be reliable either.
+
 ### Tests
 
 |Test name|True if|
