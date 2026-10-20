@@ -2208,7 +2208,7 @@ prf
 |Property|Description|
 |:-------|:----------|
 |lprf|Length of PRF marker segment in bytes|
-|PRFnum|Profile number|
+|PRFnum|Profile number (-9999 if it does not fit in 64 bits)|
 
 ### Tests
 
@@ -2230,7 +2230,7 @@ cpf
 |Property|Description|
 |:-------|:----------|
 |lcpf|Length of CPF marker segment in bytes|
-|CPFnum|Profile number|
+|CPFnum|Profile number (-9999 if it does not fit in 64 bits)|
 
 ### Tests
 
