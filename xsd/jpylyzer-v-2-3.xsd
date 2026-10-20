@@ -201,7 +201,7 @@
       <xs:sequence>
         <xs:element ref="br"/>
         <xs:element ref="minV"/>
-        <xs:element ref="cL" maxOccurs="unbounded"/>
+        <xs:element ref="cL" minOccurs="0" maxOccurs="unbounded"/>
       </xs:sequence>
     </xs:complexType>
   </xs:element>
@@ -244,7 +244,7 @@
 
   <xs:element name="bitsPerComponentBox">  
     <xs:complexType>
-      <xs:sequence maxOccurs="unbounded">
+      <xs:sequence minOccurs="0" maxOccurs="unbounded">
         <xs:element ref="bPCSign"/>
         <xs:element ref="bPCDepth"/>
       </xs:sequence>
@@ -375,7 +375,7 @@
       <xs:sequence>
         <xs:element ref="nE"/>
         <xs:element ref="nPC"/>
-          <xs:sequence maxOccurs="unbounded">
+          <xs:sequence minOccurs="0" maxOccurs="unbounded">
             <xs:element ref="bSign"/>
             <xs:element ref="bDepth"/>
             <xs:element ref="cP" minOccurs="0" maxOccurs="unbounded"/>
@@ -392,7 +392,7 @@
 
   <xs:element name="componentMappingBox">
     <xs:complexType>
-      <xs:sequence maxOccurs="unbounded">
+      <xs:sequence minOccurs="0" maxOccurs="unbounded">
         <xs:element ref="cMP"/>
         <xs:element ref="mTyp"/>
         <xs:element ref="pCol"/>
@@ -408,7 +408,7 @@
     <xs:complexType>
       <xs:sequence>
         <xs:element ref="n"/>
-        <xs:sequence maxOccurs="unbounded">
+        <xs:sequence minOccurs="0" maxOccurs="unbounded">
           <xs:element ref="cN"/>
           <xs:element ref="cTyp"/>
           <xs:element ref="cAssoc"/>
@@ -818,7 +818,7 @@
     <xs:complexType>
       <xs:sequence>
         <xs:element ref="lpoc"/>
-        <xs:sequence maxOccurs="unbounded">
+        <xs:sequence minOccurs="0" maxOccurs="unbounded">
           <xs:element ref="rspoc"/>
           <xs:element ref="cspoc"/>
           <xs:element ref="lyepoc"/>
