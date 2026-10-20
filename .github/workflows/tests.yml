@@ -31,6 +31,15 @@ jobs:
           repository: openpreserve/jpylyzer-test-files
           path: jpylyzer-test-files
 
+      # 195 MB, so only for one job
+      - name: Check out openjpeg-data
+        if: runner.os == 'Linux' && matrix.python-version == '3.12'
+        uses: actions/checkout@v4
+        with:
+          repository: uclouvain/openjpeg-data
+          path: openjpeg-data
+          sparse-checkout: input
+
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
@@ -41,4 +50,5 @@ jobs:
       - name: Run tests
         env:
           JPYLYZER_TEST_FILES: ${{ github.workspace }}/jpylyzer-test-files/files
+          JPYLYZER_OPENJPEG_DATA: ${{ github.workspace }}/openjpeg-data
         run: python -m pytest -rs

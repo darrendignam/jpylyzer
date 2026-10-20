@@ -198,6 +198,14 @@ corpus. They look for its `files` directory in the path given by the
 directory next to the jpylyzer directory. If neither exists, they are skipped
 (`python -m pytest -rs` shows why).
 
+`tests/unit/test_openjpeg.py` runs every file of the
+[openjpeg-data](https://github.com/uclouvain/openjpeg-data) corpus (its
+`input` directory) and checks that each report is complete and conforms to the
+schema, and that the ISO/IEC 15444-4 conformance files are valid. It looks for
+the openjpeg-data root directory in `JPYLYZER_OPENJPEG_DATA`, or else in an
+`openjpeg-data` directory next to the jpylyzer directory, and is skipped
+otherwise.
+
 `tests/unit/test_regressions.py` holds one end-to-end case for each defect
 fixed after the 2.3.0rc1 review, and `tests/unit/test_robustness.py` runs
 seeded mutations of `balloon.jp2` that must neither crash, hang nor produce a
