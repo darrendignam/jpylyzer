@@ -146,6 +146,11 @@ class IccValidator(Validator):
         self.addCharacteristic("profileCannotBeUsedIndependently",
                                profileCannotBeUsedIndependently)
 
+        # Bits 2-15 are reserved by the ICC (bits 16-31 are for CMM vendors)
+        if profileFlags != -9999 and profileFlags & 0xFFFC:
+            self.addWarning("ICC profile flags have reserved bits set (bits 2-15), "
+                            "so the defined flags may not be reliable either")
+
         # Device manufacturer
         deviceManufacturer = self.boxContents[48:52]
         self.addCharacteristic("deviceManufacturer", deviceManufacturer)
@@ -173,6 +178,11 @@ class IccValidator(Validator):
         # Media colour (1 = black & white; 0 = colour)
         colour = bc.getBitValueFromRight(deviceAttributes, 3)
         self.addCharacteristic("colour", colour)
+
+        # Bits 4-31 are reserved by the ICC (bits 32-63 are for vendors)
+        if deviceAttributes != -9999 and deviceAttributes & 0xFFFFFFF0:
+            self.addWarning("ICC device attributes have reserved bits set (bits 4-31), "
+                            "so the defined attributes may not be reliable either")
 
         # Rendering intent (bytes 64-67, only least-significant 2 bytes used)
         renderingIntent = bc.bytesToUShortInt(self.boxContents[66:68])

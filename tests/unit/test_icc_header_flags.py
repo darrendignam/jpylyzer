@@ -69,3 +69,22 @@ def test_truncated_header():
 def test_bit_value_from_right():
     assert [bc.getBitValueFromRight(0b1010, p) for p in range(4)] == [0, 1, 0, 1]
     assert bc.getBitValueFromRight(-9999, 0) == -9999
+
+
+def warnings(profile):
+    return [e.text for e in IccValidator(OPTIONS, "icc", profile).validate().warnings]
+
+
+@pytest.mark.parametrize("flags,attributes,expected", [
+    (0x00000003, 0xFFFFFFFF0000000F, 0),    # defined and vendor bits only
+    (0x00000004, 0x0, 1),
+    (0x0, 0x37FA98, 1),    # sRGB v4 profiles in jpylyzer-test-files (icc_v4_*.jp2)
+    (0x8000, 0x10, 2),
+])
+def test_reserved_bits_set(flags, attributes, expected):
+    assert len([w for w in warnings(profile_header(flags, attributes))
+                if "reserved bits" in w]) == expected
+
+
+def test_no_reserved_bit_warning_for_truncated_header():
+    assert not [w for w in warnings(profile_header(0, 0)[:40]) if "reserved bits" in w]
