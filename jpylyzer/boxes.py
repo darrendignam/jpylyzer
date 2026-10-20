@@ -16,8 +16,11 @@ from .icc import IccValidator
 
 # Namespace names in the report must be URI references (Namespaces in XML), or
 # parsers such as libxml2 reject the whole report: characters allowed by
-# RFC 3986, with '%' only as part of a percent-encoded octet
-NAMESPACE_NAME = re.compile(r"(?:[A-Za-z0-9\-._~:/?#@!$&'()*+,;=]|%[0-9A-Fa-f]{2})+\Z")
+# RFC 3986, with '%' only as part of a percent-encoded octet, and '[' and ']'
+# only around an IP literal host directly after "scheme://"
+NAMESPACE_NAME = re.compile(
+    r"(?:[A-Za-z][A-Za-z0-9+.\-]*://\[[0-9A-Za-z.:]+\])?"
+    r"(?:[A-Za-z0-9\-._~:/?#@!$&'()*+,;=]|%[0-9A-Fa-f]{2})*\Z")
 
 
 class BoxValidator(Validator):
