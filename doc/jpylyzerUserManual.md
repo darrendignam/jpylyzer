@@ -1887,6 +1887,11 @@ is given by the following 2 derived properties (these are always reported, irres
 |tilePartsTLMConsistencyCheck|Number of tile parts indicated by TLM markers equals actual number of tile parts found (only reported if codestream contains any TLM marker segments)|
 |tilePartLengthsConsistencyCheck|Tile part lengths defined by ptlm values in TLM marker segments correspond to psot values in SOT marker segments (only reported if codestream contains any TLM marker segments)|
 |foundEOCMarker|Last 2 bytes in codestream constitute an end of codestream (EOC) marker segment|
+|mainHeaderMarkersAllowed|Codestream main header does not contain markers that are not allowed there (SOC or SIZ after the first, PLT, PPT, SOD or EOC)|
+|maxOneCODMain|Codestream main header contains no more than one coding style default (COD) marker segment|
+|maxOneQCDMain|Codestream main header contains no more than one quantization default (QCD) marker segment|
+|maxOnePOCMain|Codestream main header contains no more than one progression order change (POC) marker segment|
+|noPPTMarkersWithPPM (if codestream contains PPM marker segments)|No tile part header contains packed packet headers (PPT) marker segments|
 
 Image and tile size (SIZ) marker segment (child of Contiguous Codestream box) {#siz-marker}
 ---------------------------------------------------------------------------------
@@ -2304,6 +2309,10 @@ is given by the following 2 derived properties (these are always reported, irres
 |maxOneCqccPerComponentTP|No more than one *cqcc* value for each component in tile-part header (only reported if codestream contains any QCC marker segments)|
 |foundNextTilePartOrEOC|Tile part start offset + *tilePartLength* points to either start of new tile or EOC marker (useful for detecting within-codestream byte corruption)|
 |foundSODMarker|Last marker segment of tile part is a start-of-data (SOD) marker|
+|tilePartHeaderMarkersAllowed|Tile part header does not contain markers that are only allowed in the main header (SIZ, CAP, PRF, CPF, TLM, PLM, PPM, CRG), or SOC or EOC|
+|maxOneCODTP|Tile part header contains no more than one coding style default (COD) marker segment|
+|maxOneQCDTP|Tile part header contains no more than one quantization default (QCD) marker segment|
+|maxOnePOCTP|Tile part header contains no more than one progression order change (POC) marker segment|
 
 Start of tile part (SOT) marker segment (child of tile part) {#sot-marker}
 -----------------------------------------------------------------
