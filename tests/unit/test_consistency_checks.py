@@ -102,3 +102,19 @@ def test_cap_with_truncated_pcap():
     result = CSMarkerValidator(OPTIONS, b'\xff\x50', struct.pack(">H", 8) + b"\x00").validate()
     assert result.tests.findtext("lcapIsValid") is False
     assert result.characteristics.findall("pcapPart") == []
+
+
+@pytest.mark.parametrize("fields,expected", [
+    ({}, None),
+    # Tile grid origin beyond the image in both directions: no tiles, not
+    # (-n) * (-m) of them
+    ({"xTOsiz": 4000, "yTOsiz": 4000}, 0),
+    ({"xTOsiz": 4000}, 0),
+])
+def test_number_of_tiles_is_never_negative_or_inflated(fields, expected):
+    result = CSMarkerValidator(OPTIONS, b'\xff\x51', siz(**fields), components=3).validate()
+    numberOfTiles = result.characteristics.findtext("numberOfTiles")
+    if expected is None:
+        assert numberOfTiles > 0
+    else:
+        assert numberOfTiles == expected
