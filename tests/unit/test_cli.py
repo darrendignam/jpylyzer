@@ -50,12 +50,20 @@ def test_overlapping_inputs_report_each_file_once(capsys, tmp_path):
     assert names == ["x.jp2"]
 
 
+def test_unique_files_normalises_paths(tmp_path):
+    a = str(tmp_path / "a.jp2")
+    paths = [a, str(tmp_path / "." / "a.jp2"), str(tmp_path / "sub" / ".." / "a.jp2"), a]
+    assert jpylyzer.uniqueFiles(paths) == [a]
+
+
 @pytest.mark.skipif(sys.platform == "win32", reason="symbolic links")
-def test_unique_files_resolves_links(tmp_path):
+def test_explicitly_named_link_is_reported(capsys, tmp_path):
+    # Each input the user names gets its own report entry, as in 2.3.0rc1
     shutil.copy(BALLOON, tmp_path / "a.jp2")
     (tmp_path / "b.jp2").symlink_to(tmp_path / "a.jp2")
-    paths = [str(tmp_path / "a.jp2"), str(tmp_path / "b.jp2"), str(tmp_path / "a.jp2")]
-    assert jpylyzer.uniqueFiles(paths) == [str(tmp_path / "a.jp2")]
+    names = checked_file_names(capsys, False, [str(tmp_path / "a.jp2"),
+                                               str(tmp_path / "b.jp2")])
+    assert names == ["a.jp2", "b.jp2"]
 
 
 def test_tool_name_when_run_as_module():

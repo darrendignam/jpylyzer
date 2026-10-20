@@ -530,13 +530,15 @@ def stripSurrogatePairs(ustring):
 
 
 def uniqueFiles(paths):
-    """Return paths without repeats of the same file, keeping the first."""
+    """Return paths without repeats of the same path, keeping the first.
+    Paths are compared after making them absolute and normalised, but links are
+    not resolved, so each explicitly named link is still reported."""
     seen = set()
     unique = []
     for path in paths:
-        realPath = os.path.realpath(path)
-        if realPath not in seen:
-            seen.add(realPath)
+        absolutePath = os.path.abspath(path)
+        if absolutePath not in seen:
+            seen.add(absolutePath)
             unique.append(path)
     return unique
 
