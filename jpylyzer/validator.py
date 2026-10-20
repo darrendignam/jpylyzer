@@ -315,3 +315,19 @@ class Validator:
         """Return True if all occurrences of value in lst are at contiguous positions."""
         indices_of_value = [i for i in range(len(lst)) if lst[i] == value]
         return self._consecutive(indices_of_value)
+
+    def _boxLengthIsValid(self, byteStart, noBytes, lengthZeroAllowed):
+        """Check the box header that starts at byteStart (ISO/IEC 15444-1
+        Section I.4): LBox is not 2-7, XLBox is at least 16, and the box ends
+        within the noBytes bytes of its parent (or file). LBox 0 (box extends
+        to the end) is only allowed if lengthZeroAllowed."""
+        boxLengthValue = bc.bytesToUInt(self.boxContents[byteStart:byteStart + 4])
+        if boxLengthValue == 0:
+            return lengthZeroAllowed
+        if boxLengthValue == 1:
+            boxLengthValue = bc.bytesToULongLong(
+                self.boxContents[byteStart + 8:byteStart + 16])
+            minimumLength = 16
+        else:
+            minimumLength = 8
+        return minimumLength <= boxLengthValue <= noBytes - byteStart

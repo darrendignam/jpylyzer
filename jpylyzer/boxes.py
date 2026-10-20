@@ -134,7 +134,13 @@ class BoxValidator(Validator):
         # Dummy value
         boxLengthValue = 10
 
+        # Sub-box lengths must be valid and fit in this box; a sub-box cannot
+        # extend to the end of the file (LBox 0) as this box does not
+        subBoxLengthsAreValid = True
+
         while byteStart < noBytes and boxLengthValue not in [0, -9999]:
+            subBoxLengthsAreValid = subBoxLengthsAreValid and self._boxLengthIsValid(
+                byteStart, noBytes, lengthZeroAllowed=False)
             boxLengthValue, boxType, byteEnd, subBoxContents = self._getBox(byteStart,
                                                                             noBytes)
 
@@ -166,6 +172,8 @@ class BoxValidator(Validator):
             self.tests.appendIfNotEmpty(testsBox)
             self.characteristics.append(characteristicsBox)
             self.warnings.appendIfNotEmpty(warningsBox)
+
+        self.testFor("subBoxLengthsAreValid", subBoxLengthsAreValid)
 
         # Do all required header boxes exist?
         self.testFor("containsImageHeaderBox",
@@ -761,8 +769,14 @@ class BoxValidator(Validator):
         # Dummy value
         boxLengthValue = 10
 
+        # Sub-box lengths must be valid and fit in this box; a sub-box cannot
+        # extend to the end of the file (LBox 0) as this box does not
+        subBoxLengthsAreValid = True
+
         while byteStart < noBytes and boxLengthValue not in [0, -9999]:
 
+            subBoxLengthsAreValid = subBoxLengthsAreValid and self._boxLengthIsValid(
+                byteStart, noBytes, lengthZeroAllowed=False)
             boxLengthValue, boxType, byteEnd, subBoxContents = self._getBox(byteStart,
                                                                             noBytes)
 
@@ -785,6 +799,8 @@ class BoxValidator(Validator):
             self.tests.appendIfNotEmpty(testsBox)
             self.characteristics.append(characteristicsBox)
             self.warnings.appendIfNotEmpty(warningsBox)
+
+        self.testFor("subBoxLengthsAreValid", subBoxLengthsAreValid)
 
         # This box contains either one Capture Resolution box, one Default Display
         # resolution box, or one of both
@@ -1064,8 +1080,14 @@ class BoxValidator(Validator):
         # Dummy value
         boxLengthValue = 10
 
+        # Sub-box lengths must be valid and fit in this box; a sub-box cannot
+        # extend to the end of the file (LBox 0) as this box does not
+        subBoxLengthsAreValid = True
+
         while byteStart < noBytes and boxLengthValue not in [0, -9999]:
 
+            subBoxLengthsAreValid = subBoxLengthsAreValid and self._boxLengthIsValid(
+                byteStart, noBytes, lengthZeroAllowed=False)
             boxLengthValue, boxType, byteEnd, subBoxContents = self._getBox(byteStart,
                                                                             noBytes)
 
@@ -1088,6 +1110,8 @@ class BoxValidator(Validator):
             self.tests.appendIfNotEmpty(testsBox)
             self.characteristics.append(characteristicsBox)
             self.warnings.appendIfNotEmpty(warningsBox)
+
+        self.testFor("subBoxLengthsAreValid", subBoxLengthsAreValid)
 
         # This box contains one UUID List box and one Data Entry URL box
         self.testFor("containsOneListBox", subBoxTypes.count(tagListBox) == 1)
