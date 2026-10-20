@@ -50,11 +50,18 @@ class BoxValidator(Validator):
         """
         boxType = self.bTypeString
 
+        # Box types that are not printable ASCII are reported in hexadecimal;
+        # as text they would come out empty or garbled
+        if all(0x20 <= byte <= 0x7e for byte in boxType):
+            boxTypeText = boxType.decode('ascii')
+        else:
+            boxTypeText = '0x' + boxType.hex()
+
         # Add boxType string to output
-        self.addCharacteristic("boxType", boxType)
+        self.addCharacteristic("boxType", boxTypeText)
 
         # Print warning message to screen
-        msg = "ignoring unknown box '" + bc.bytesToText(boxType) + "'"
+        msg = "ignoring unknown box '" + boxTypeText + "'"
         self.addWarning(msg)
         shared.printWarning(msg)
 
