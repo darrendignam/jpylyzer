@@ -40,6 +40,10 @@ class Validator:
     """Generic validator class
     """
 
+    # Reserved for markers without marker segment parameters (ISO/IEC 15444-1
+    # Table A.1); readers skip them
+    RESERVED_MARKERS_WITHOUT_PARAMETERS = [bytes([0xFF, code]) for code in range(0x30, 0x40)]
+
     def __init__(self, options, bType, boxContents,
                  startOffset=None, components=None):
         """Initialise a Validator."""
@@ -201,6 +205,8 @@ class Validator:
         # Check if this is a delimiting marker segment
         if marker in [b'\xff\x4f', b'\xff\x93', b'\xff\xd9', b'\xff\x92']:
             # Zero-length markers: SOC, SOD, EOC, EPH
+            length = 0
+        elif marker in self.RESERVED_MARKERS_WITHOUT_PARAMETERS:
             length = 0
         else:
             # Not a delimiting marker, so remainder contains some data
