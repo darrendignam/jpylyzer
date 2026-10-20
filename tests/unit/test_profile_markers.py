@@ -57,3 +57,25 @@ def test_cpf_last_word_zero():
 def test_cpf_tests_only_for_htj2k_formats():
     _, tests = validate(CPF, [1, 0], 'jp2')
     assert tests == {}
+
+
+@pytest.mark.parametrize("marker,name", [(PRF, "PRFnum"), (CPF, "CPFnum")])
+def test_profile_number_beyond_64_bits(marker, name):
+    # 1000 words: previously an integer of thousands of digits, which failed
+    # when converted to text ("unknown error")
+    options = {'validationFormat': 'jph', 'verboseFlag': True,
+               'nullxmlFlag': False, 'packetmarkersFlag': False}
+    contents = struct.pack(">H", 2 + 2 * 1000) + struct.pack(">H", 1) * 1000
+    result = CSMarkerValidator(options, marker, contents).validate()
+    assert result.characteristics.findtext(name) == -9999
+    assert [e.text for e in result.warnings] == [name + " too large to report (more than 64 bits)"]
+
+
+@pytest.mark.parametrize("marker,name,offset", [(PRF, "PRFnum", 4095), (CPF, "CPFnum", -1)])
+def test_truncated_segment_uses_words_present(marker, name, offset):
+    # Length field declares 3 words, 1.5 are present
+    options = {'validationFormat': 'jph', 'verboseFlag': True,
+               'nullxmlFlag': False, 'packetmarkersFlag': False}
+    contents = struct.pack(">HH", 8, 5) + b"\x07"
+    result = CSMarkerValidator(options, marker, contents).validate()
+    assert result.characteristics.findtext(name) == offset + 5

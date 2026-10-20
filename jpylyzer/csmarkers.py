@@ -10,6 +10,10 @@ from . import byteconv as bc
 from .validator import Validator
 
 
+# Largest integer that every XML Schema processor accepts as xs:integer
+MAX_REPORTED_INTEGER = 2 ** 63 - 1
+
+
 class CSMarkerValidator(Validator):
     """Validator class for codestream marker segments
     Note that the 'boxType' variable actually represents
@@ -1122,24 +1126,18 @@ class CSMarkerValidator(Validator):
         # lprf  must be within range 4-65534
         self.testFor("lprfIsValid", 4 <= lprf <= 65534)
 
-        # Number of pprf entries
-        nopprfs = int((lprf - 2) / 2)
+        # Pprf values, as far as they are present in the segment
+        pprfs = self._profileWords(lprf)
 
-        # Profile number (updated from pprf values below)
-        PRFnum = 4095
-        offset = 2
+        # Profile number
+        PRFnum = 4095 + sum(pprf << (16 * i) for i, pprf in enumerate(pprfs))
 
-        for i in range(nopprfs):
-            pprf = bc.bytesToUShortInt(self.boxContents[offset:offset + 2])
-            PRFnum += pprf * 2 ** (16 * i)
-            offset += 2
-
-        if nopprfs > 0:
+        if pprfs:
             # last pprf shall not be zero
-            self.testFor("pprfIsValid", pprf != 0)
+            self.testFor("pprfIsValid", pprfs[-1] != 0)
 
         self.testFor("PRFnumIsValid", PRFnum > 4095)
-        self.addCharacteristic("PRFnum", PRFnum)
+        self.addCharacteristic("PRFnum", self._reportableProfileNumber("PRFnum", PRFnum))
 
     def validate_cpf(self):
         """Corresponding profile (CPF) marker segment (15444-15, Section A.6)."""
@@ -1152,23 +1150,33 @@ class CSMarkerValidator(Validator):
         if self.format in ['jph', 'jhc']:
             self.testFor("lcpfIsValid", 4 <= lcpf <= 65534)
 
-        # Number of pcpf entries
-        nopcpfs = int((lcpf - 2) / 2)
+        # Pcpf values, as far as they are present in the segment
+        pcpfs = self._profileWords(lcpf)
 
-        # Profile number (updated from ppf values below)
-        CPFnum = -1
-        offset = 2
+        # Profile number
+        CPFnum = -1 + sum(pcpf << (16 * i) for i, pcpf in enumerate(pcpfs))
 
-        for i in range(nopcpfs):
-            pcpf = bc.bytesToUShortInt(self.boxContents[offset:offset + 2])
-            CPFnum += pcpf * 2 ** (16 * i)
-            offset += 2
-
-        if nopcpfs > 0 and self.format in ['jph', 'jhc']:
+        if pcpfs and self.format in ['jph', 'jhc']:
             # last pcpf shall not be zero
-            self.testFor("pcpfIsValid", pcpf != 0)
+            self.testFor("pcpfIsValid", pcpfs[-1] != 0)
 
-        self.addCharacteristic("CPFnum", CPFnum)
+        self.addCharacteristic("CPFnum", self._reportableProfileNumber("CPFnum", CPFnum))
+
+    def _profileWords(self, length):
+        """16-bit Pprf/Pcpf words of a PRF or CPF segment with length field
+        length, leaving out any that the segment declares but does not contain."""
+        end = min(length, len(self.boxContents))
+        return [bc.bytesToUShortInt(self.boxContents[offset:offset + 2])
+                for offset in range(2, end - 1, 2)]
+
+    def _reportableProfileNumber(self, name, number):
+        """Profile number, or -9999 with a warning if it exceeds the 64-bit
+        range that XML Schema processors accept for xs:integer (a segment can
+        hold up to 32766 words, which no profile needs)."""
+        if number > MAX_REPORTED_INTEGER:
+            self.addWarning(name + " too large to report (more than 64 bits)")
+            return -9999
+        return number
 
     def validate_sot(self):
         """Start of tile-part (SOT) marker segment (ISO/IEC 15444-1 Section A.4.2)."""
