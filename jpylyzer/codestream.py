@@ -43,6 +43,40 @@ class CSValidator(Validator):
 
     # Validator function for JPEG 2000 codestream
 
+    def _tilesWithSamples(self, numberOfTiles):
+        """Indices of the tiles that have at least one non-empty tile-component
+        (ISO/IEC 15444-1 Equations B-7 to B-12). Falls back to all tiles if
+        the SIZ values cannot be used or give an empty image area."""
+        siz = self.characteristics.find('siz')
+        allTiles = set(range(numberOfTiles))
+        if siz is None:
+            return allTiles
+        names = ['xsiz', 'ysiz', 'xOsiz', 'yOsiz', 'xTsiz', 'yTsiz', 'xTOsiz', 'yTOsiz']
+        xsiz, ysiz, xOsiz, yOsiz, xTsiz, yTsiz, xTOsiz, yTOsiz = [
+            siz.findElementText(name) for name in names]
+        separations = list(zip(siz.findAllText('xRsiz'), siz.findAllText('yRsiz')))
+        values = [xsiz, ysiz, xOsiz, yOsiz, xTsiz, yTsiz, xTOsiz, yTOsiz]
+        if (not separations or any(not isinstance(v, int) or v < 0 for v in values)
+                or xTsiz == 0 or yTsiz == 0 or xsiz <= xTOsiz
+                or xOsiz >= xsiz or yOsiz >= ysiz
+                or any(not isinstance(r, int) or r <= 0 for pair in separations for r in pair)):
+            return allTiles
+
+        tilesX = -(-(xsiz - xTOsiz) // xTsiz)
+        tilesWithSamples = set()
+        for tile in allTiles:
+            p, q = tile % tilesX, tile // tilesX
+            tx0 = max(xTOsiz + p * xTsiz, xOsiz)
+            tx1 = min(xTOsiz + (p + 1) * xTsiz, xsiz)
+            ty0 = max(yTOsiz + q * yTsiz, yOsiz)
+            ty1 = min(yTOsiz + (q + 1) * yTsiz, ysiz)
+            # Ceiling division: tcx0 = ceil(tx0 / XRsiz) etc.
+            if any(-(-tx1 // xRsiz) > -(-tx0 // xRsiz) and
+                   -(-ty1 // yRsiz) > -(-ty0 // yRsiz)
+                   for xRsiz, yRsiz in separations):
+                tilesWithSamples.add(tile)
+        return tilesWithSamples
+
     def validate_codestream(self):
         """Validate JPEG 2000 codestream"""
         # Codestream length
@@ -431,14 +465,20 @@ class CSValidator(Validator):
                         # this loop
                         break
 
-            # Length of tileIndices must equal numberOfTilesExpected
-            self.testFor("foundExpectedNumberOfTiles", len(
-                tileIndices) == numberOfTilesExpected)
+            # Every tile with samples must be present, and every tile found must
+            # be in the tile grid. Tiles whose tile-components are all empty
+            # carry no data and may be left out (e.g. conformance codestream
+            # b2_mono.j2c of ISO/IEC 15444-4)
+            self.testFor("foundExpectedNumberOfTiles",
+                         self._tilesWithSamples(numberOfTilesExpected) <= tileIndices
+                         <= set(range(numberOfTilesExpected)))
 
-            # Found numbers of tile	parts per tile must match expected
+            # Found numbers of tile parts must match expected for every tile whose
+            # tnsot is not 0 (0: number of tile-parts not given)
             if tilePartsPerTileExpected:
                 self.testFor("foundExpectedNumberOfTileParts",
-                             tilePartsPerTileExpected == tilePartsPerTileFound)
+                             all(tilePartsPerTileFound.get(tile) == count
+                                 for tile, count in tilePartsPerTileExpected.items()))
 
             # Add tile-part tests, characteristics and warnings to tree
             self.tests.appendIfNotEmpty(tilePartTests)
