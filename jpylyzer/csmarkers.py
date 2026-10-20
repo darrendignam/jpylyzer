@@ -221,8 +221,10 @@ class CSMarkerValidator(Validator):
         if xTsiz != 0 and yTsiz != 0:
             # If block to prevent zero-division (which should not happen
             # for valid files)
-            numberOfTilesX = math.ceil((xsiz - xTOsiz) / xTsiz)
-            numberOfTilesY = math.ceil((ysiz - yTOsiz) / yTsiz)
+            # Clamp at 0: with a tile offset beyond the image both factors are
+            # negative, and their product would be a positive tile count
+            numberOfTilesX = max(math.ceil((xsiz - xTOsiz) / xTsiz), 0)
+            numberOfTilesY = max(math.ceil((ysiz - yTOsiz) / yTsiz), 0)
             numberOfTiles = int(numberOfTilesX * numberOfTilesY)
         else:
             # Bogus value
