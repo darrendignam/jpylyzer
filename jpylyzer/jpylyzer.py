@@ -56,8 +56,9 @@ except ImportError:
 
 SCRIPT_PATH, SCRIPT_NAME = os.path.split(sys.argv[0])
 
-# SCRIPT_NAME is empty when called from Java/Jython, so this needs a fix
-if not SCRIPT_NAME:
+# SCRIPT_NAME is empty when called from Java/Jython, and __main__.py when
+# run as 'python -m jpylyzer', so this needs a fix
+if SCRIPT_NAME in ['', '__main__.py']:
     SCRIPT_NAME = 'jpylyzer'
 
 __version__ = "2.3.0rc1"
@@ -516,6 +517,20 @@ def stripSurrogatePairs(ustring):
     return ustring
 
 
+def uniqueFiles(paths):
+    """Return paths without repeats of the same path, keeping the first.
+    Paths are compared after making them absolute and normalised, but links are
+    not resolved, so each explicitly named link is still reported."""
+    seen = set()
+    unique = []
+    for path in paths:
+        absolutePath = os.path.abspath(path)
+        if absolutePath not in seen:
+            seen.add(absolutePath)
+            unique.append(path)
+    return unique
+
+
 def getFiles(searchpattern):
     """Append paths of all files that match search pattern to EXISTING_FILES."""
     results = glob.glob(searchpattern)
@@ -610,7 +625,6 @@ def findFiles(recurse, paths):
                 pathAndFilePattern = os.path.split(root)
                 path = pathAndFilePattern[0]
                 filePattern = pathAndFilePattern[1]
-                filenameAndExtension = os.path.splitext(filePattern)
                 # input path contains wildcard
                 if WILDCARD in path:
                     filepath = glob.glob(path)
@@ -626,10 +640,6 @@ def findFiles(recurse, paths):
                 # file name or extension contains wildcard
                 elif WILDCARD in filePattern:
                     getFilesWithPatternFromTree(path, filePattern)
-                elif WILDCARD in filenameAndExtension:
-                    filenameAndExtension = os.path.splitext(filePattern)
-                    extension = WILDCARD + filenameAndExtension[1]
-                    getFilesWithPatternFromTree(path, extension)
             # get files in the current folder and sub dirs w/o wildcard in path
             elif os.path.isdir(root):
                 getFilesFromTree(root)
@@ -664,8 +674,12 @@ def checkFiles(recurse, paths):
     # Schema location
     locSchemaString = LOC_SCHEMA_STRING_2
 
-    # Find existing files in the given input path(s)
+    # Find existing files in the given input path(s). Files found by an
+    # earlier call (e.g. through the API) must not be checked again, and
+    # overlapping inputs must not report a file twice
+    EXISTING_FILES.clear()
     findFiles(recurse, paths)
+    EXISTING_FILES[:] = uniqueFiles(EXISTING_FILES)
 
     # If there are no valid input files then exit program
     checkNoInput(EXISTING_FILES)
