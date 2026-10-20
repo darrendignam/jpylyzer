@@ -523,7 +523,7 @@
     <xs:complexType>
       <xs:sequence>
         <xs:element ref="nU"/>
-        <xs:element ref="uuid" maxOccurs="unbounded"/>
+        <xs:element ref="uuid" minOccurs="0" maxOccurs="unbounded"/>
       </xs:sequence>
     </xs:complexType>
   </xs:element>
