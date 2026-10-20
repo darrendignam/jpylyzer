@@ -97,3 +97,10 @@ def test_qcc_no_quantization():
     mu, epsilon, tests = validate(QCC, segment(bytes([1, 0x20]) + bytes([8, 16, 24, 32])))
     assert epsilon == [1, 2, 3, 4]
     assert tests["lqccConsistentWithQStyle"] is True
+
+
+@pytest.mark.parametrize("sqcd", [0x41, 0x42])
+def test_truncated_segment_reports_no_made_up_values(sqcd):
+    # Lqcd says 5 (one value), but only one byte of the value is present
+    mu, epsilon, _ = validate(QCD, struct.pack(">HB", 5, sqcd) + b"\x12")
+    assert (mu, epsilon) == ([], [])

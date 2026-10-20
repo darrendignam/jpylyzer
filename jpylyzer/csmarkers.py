@@ -765,7 +765,9 @@ class CSMarkerValidator(Validator):
         elif qStyle in [1, 2]:
             # Two bytes per value: 11 least significant bits -> mu, 5 most
             # significant bits -> exponent epsilon in Eq E-3
-            noValues = 1 if qStyle == 1 else max(available, 0) // 2
+            noValues = max(available, 0) // 2
+            if qStyle == 1:
+                noValues = min(noValues, 1)
             for i in range(noValues):
                 spq = bc.bytesToUShortInt(
                     self.boxContents[offset + 2 * i:offset + 2 * i + 2])
