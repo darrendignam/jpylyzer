@@ -144,6 +144,15 @@ class BoxValidator(Validator):
             characteristicsBox = resultsBox.characteristics
             warningsBox = resultsBox.warnings
 
+            # A JP2 reader ignores all Colour Specification boxes after the first
+            # (ISO/IEC 15444-1 Section I.5.3.3), so report them without testing
+            if (self.format == 'jp2' and
+                    boxType == self.boxTagMap['colourSpecificationBox'] and
+                    self.boxTagMap['colourSpecificationBox'] in subBoxTypes):
+                testsBox = ET.Element('tests')
+                self.addWarning("Colour Specification box after the first one is "
+                                "ignored by JP2 readers and was not tested")
+
             byteStart = byteEnd
 
             # Add to list of box types
@@ -370,6 +379,9 @@ class BoxValidator(Validator):
         # Colour space info: enumerated CS or embedded ICC profile,
         # depending on value of meth
         if meth == 1:
+            # METH, PREC, APPROX and a 4-byte EnumCS field
+            self.testFor("boxLengthIsValid", length == 7)
+
             # Enumerated colour space field (long integer)
             enumCS = bc.bytesToUInt(self.boxContents[3:length])
             self.addCharacteristic("enumCS", enumCS)
@@ -431,6 +443,9 @@ class BoxValidator(Validator):
 
         elif meth == 5:
             # Parameterized colourspace. Used in JPEG 2000 Part 15 (JPH)
+
+            # METH, PREC, APPROX, three 2-byte H.273 codes and 1 flags byte
+            self.testFor("boxLengthIsValid", length == 10)
 
             # ColourPrimaries value
             colPrims = bc.bytesToUShortInt(self.boxContents[3:5])
