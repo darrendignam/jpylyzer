@@ -1136,6 +1136,9 @@ profile is allowed in JP2)!
 |iccSizeIsValid (if meth equals “Restricted ICC”)|Actual size of embedded ICC profile equals value of profileSize field in ICC header|
 |iccPermittedProfileClass (if meth equals “Restricted ICC”)|ICC profile class is “input device” or “display device”[^6]|
 |iccNoLUTBasedProfile (if meth equals “Restricted ICC”)|ICC profile type is not N-component LUT based (which is not allowed in JP2)|
+|iccPermittedColourSpace (if meth equals “Restricted ICC”)|ICC colour space is “GRAY” (monochrome) or “RGB” (three-component matrix-based)|
+|iccRequiredTagsPresent (if meth equals “Restricted ICC”)|ICC profile contains the grey TRC tag (“GRAY”), or the red, green and blue matrix column and TRC tags (“RGB”)|
+|iccPermittedConnectionSpace (if meth equals “Restricted ICC” and colour space is “RGB”)|ICC profile connection space is “XYZ”|
 |colPrimsIsValid|*colPrims* value is defined by ITU-T H.273 / ISO/IEC 23001-8 (JPH)|
 |transfCIsValid|*transfC* value is defined by ITU-T H.273 / ISO/IEC 23001-8 (JPH)|
 |matCoeffsIsValid|*matCoeffs* value is defined by ITU-T H.273 / ISO/IEC 23001-8 (JPH)|

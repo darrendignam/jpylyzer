@@ -509,6 +509,23 @@ class BoxValidator(Validator):
             # Step 3: verify non-existence of "AToB0Tag"
             self.testFor("iccNoLUTBasedProfile", b'A2B0' not in tagSignatures)
 
+            # A restricted ICC profile is a Monochrome or a Three-Component
+            # Matrix-Based profile (ISO/IEC 15444-1 Section I.5.3.3; ICC.1:2022
+            # Section 8.3), so its colour space is GRAY or RGB, it has the grey
+            # TRC or the matrix column and TRC tags, and an RGB profile uses XYZ
+            # as profile connection space
+            colourSpace = iccCharacteristics.findElementText('colourSpace')
+            self.testFor("iccPermittedColourSpace", colourSpace in [b'GRAY', b'RGB '])
+            requiredTags = {b'GRAY': [b'kTRC'],
+                            b'RGB ': [b'rXYZ', b'gXYZ', b'bXYZ',
+                                      b'rTRC', b'gTRC', b'bTRC']}.get(colourSpace, [])
+            self.testFor("iccRequiredTagsPresent",
+                         all(tag in tagSignatures for tag in requiredTags))
+            if colourSpace == b'RGB ':
+                self.testFor("iccPermittedConnectionSpace",
+                             iccCharacteristics.findElementText(
+                                 'profileConnectionSpace') == b'XYZ ')
+
         elif meth == 3:
             # ICC profile embedded using "Any ICC" method. Used in JPEG 2000 Part 2
             # (JPX) and Part 15 (JPH)
