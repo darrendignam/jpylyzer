@@ -78,7 +78,7 @@ def warnings(profile):
 @pytest.mark.parametrize("flags,attributes,expected", [
     (0x00000003, 0xFFFFFFFF0000000F, 0),    # defined and vendor bits only
     (0x00000004, 0x0, 1),
-    (0x0, 0x37FA98, 1),    # sRGB v4 profiles in jpylyzer-test-files (icc_v4_*.jp2)
+    (0x0, 0x37FA98, 1),    # sRGB v4 profile in jpylyzer-test-files icc_v4_appearance.jp2
     (0x8000, 0x10, 2),
 ])
 def test_reserved_bits_set(flags, attributes, expected):
