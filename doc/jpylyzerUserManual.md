@@ -1869,6 +1869,10 @@ is given by the following 2 derived properties (these are always reported, irres
 |foundQCDMarker|Codestream main header contains quantization default (QCD) marker segment|
 |foundExpectedNumberOfTiles|Encountered tiles are consistent with the tile grid (as calculated from [SIZ marker](#siz-marker)): every tile that contains image samples is present, and no tile index is outside the grid. Tiles whose tile-components are all empty may be left out|
 |foundExpectedNumberOfTileParts|For all tiles with a non-zero *tnsot* value in any [SOT marker](#sot-marker), number of encountered tile parts is consistent with that value|
+|tilePartIndicesConsistencyCheck|For each tile, the *tpsot* values of its tile parts are 0, 1, 2, ... in the order in which the tile parts appear in the codestream|
+|tnsotConsistencyCheck|For each tile, all non-zero *tnsot* values are the same|
+|psotZeroOnlyInLastTilePart (if a tile part has *psot* = 0)|No tile part follows the tile part with *psot* = 0, which extends to the end of the codestream|
+|foundEOCAfterLastTilePart (if no tile part has *psot* = 0)|The end-of-codestream marker directly follows the last tile part|
 |maxOneCcocPerComponentMain|No more than one *ccoc* value for each component in main header (only reported if codestream contains any COC marker segments)|
 |maxOneCqccPerComponentMain|No more than one *cqcc* value for each component in main header (only reported if codestream contains any QCC marker segments)|
 |ccocValuesConsecutive|*ccoc* values are consecutive numbers (e.g. 0, 1, 2, etc.)|

@@ -43,6 +43,19 @@ class CSValidator(Validator):
 
     # Validator function for JPEG 2000 codestream
 
+    def _startOfData(self, offset):
+        """Offset of the first byte after the SOD marker of the tile-part that
+        starts at offset, or the end of the codestream if there is no SOD."""
+        offset += 12
+        while offset < len(self.boxContents):
+            marker, _, _, offsetNext = self._getMarkerSegment(offset)
+            if marker == b'\xff\x93':
+                return offset + 2
+            if offsetNext <= offset:
+                break
+            offset = offsetNext
+        return len(self.boxContents)
+
     def _tilesWithSamples(self, numberOfTiles):
         """Indices of the tiles that have at least one non-empty tile-component
         (ISO/IEC 15444-1 Equations B-7 to B-12). Falls back to all tiles if
@@ -417,6 +430,15 @@ class CSValidator(Validator):
             for i in range(numberOfTilesExpected):
                 tilePartsPerTileFound[i] = 0
 
+            # Tile-part indices must be 0, 1, 2, ... for each tile in codestream
+            # order, and all non-zero tnsot values of a tile must be the same
+            # (ISO/IEC 15444-1 Section A.4.2)
+            tilePartIndicesInOrder = True
+            tnsotValuesPerTile = {}
+
+            # Only the last tile-part in the codestream may have psot = 0
+            foundPsotZero = False
+
             # Create sub-elements to store tile-part characteristics, tests and warnings
             tilePartCharacteristics = ET.Element('tileParts')
             tilePartTests = ET.Element('tileParts')
@@ -441,28 +463,35 @@ class CSValidator(Validator):
                     tilePartWarnings.appendIfNotEmpty(warningsTilePart)
                     tileIndex = characteristicsTilePart.findElementText(
                         'sot/isot')
+                    tilePartIndex = characteristicsTilePart.findElementText(
+                        'sot/tpsot')
                     tilePartsOfTile = characteristicsTilePart.findElementText(
                         'sot/tnsot')
                     tileIndices.add(tileIndex)
                     # Expected number of tile-parts for each tile to dictionary
                     if tilePartsOfTile != 0:
                         tilePartsPerTileExpected[tileIndex] = tilePartsOfTile
+                        tnsotValuesPerTile.setdefault(tileIndex, set()).add(tilePartsOfTile)
+
+                    if tilePartIndex != tilePartsPerTileFound.get(tileIndex, 0):
+                        tilePartIndicesInOrder = False
 
                     # Increase found number of tile-parts for this tile by 1
                     try:
                         tilePartsPerTileFound[
                             tileIndex] = tilePartsPerTileFound[tileIndex] + 1
                     except KeyError:
-                        # Get the f**k out of here if tileIndex is not in
-                        # tilePartsPerTileFound (e.g. because the isot field is
-                        # damaged)
+                        # Tile index outside the tile grid (reported by
+                        # foundExpectedNumberOfTiles): the remaining tile-parts
+                        # cannot be trusted either
                         break
+
                     if offsetNext != offset:
                         offset = offsetNext
                     else:
-                        # offsetNext same as offset: this happens if image only contains
-                        # one single tile-part (psot=0), in which case we break out of
-                        # this loop
+                        # offsetNext same as offset: psot is 0, so this tile-part
+                        # extends to the EOC marker
+                        foundPsotZero = True
                         break
 
             # Every tile with samples must be present, and every tile found must
@@ -472,6 +501,22 @@ class CSValidator(Validator):
             self.testFor("foundExpectedNumberOfTiles",
                          self._tilesWithSamples(numberOfTilesExpected) <= tileIndices
                          <= set(range(numberOfTilesExpected)))
+
+            self.testFor("tilePartIndicesConsistencyCheck", tilePartIndicesInOrder)
+            self.testFor("tnsotConsistencyCheck",
+                         all(len(values) == 1 for values in tnsotValuesPerTile.values()))
+
+            if foundPsotZero:
+                # No other tile-part may follow. Marker code 0xFF90 cannot occur
+                # in packet headers or coded data (ISO/IEC 15444-1 Annex B and D),
+                # so a SOT marker after the start of the bit stream means one does
+                self.testFor("psotZeroOnlyInLastTilePart",
+                             self.boxContents[self._startOfData(offset):length - 2]
+                             .find(b'\xff\x90') == -1)
+            else:
+                # EOC must directly follow the last tile-part (ISO/IEC 15444-1
+                # Section A.4.4: EOC shall be the last marker in a codestream)
+                self.testFor("foundEOCAfterLastTilePart", offset == length - 2)
 
             # Found numbers of tile parts must match expected for every tile whose
             # tnsot is not 0 (0: number of tile-parts not given)

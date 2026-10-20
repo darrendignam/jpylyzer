@@ -99,3 +99,59 @@ def test_empty_image_area_requires_all_tiles(tmp_path):
     grid = dict(GRID_2X2, yOsiz=1000)
     tiles = [tile_part(t) for t in (0, 1, 3)]
     assert tile_tests(tmp_path, codestream(tiles, **grid))[0] == "False"
+def structure_tests(tmp_path, data):
+    path = tmp_path / "structure.j2c"
+    path.write_bytes(data)
+    result = checkOneFile(str(path), "j2c", verboseFlag=True)
+    assert result.findtext("statusInfo/success") == "True"
+    names = ("tilePartIndicesConsistencyCheck", "tnsotConsistencyCheck",
+             "psotZeroOnlyInLastTilePart", "foundEOCAfterLastTilePart")
+    return {name: next(result.iter(name)).text for name in names
+            if next(result.iter(name), None) is not None}
+
+
+@pytest.mark.parametrize("tileParts,expected", [
+    ([(0, 0, 2), (1, 0, 1), (0, 1, 2), (2, 0, 1), (3, 0, 1)], "True"),
+    ([(0, 1, 2), (1, 0, 1), (0, 0, 2), (2, 0, 1), (3, 0, 1)], "False"),  # 1 before 0
+    ([(0, 0, 0), (0, 0, 0), (1, 0, 1), (2, 0, 1), (3, 0, 1)], "False"),  # 0 twice
+    ([(0, 0, 2), (0, 2, 2), (1, 0, 1), (2, 0, 1), (3, 0, 1)], "False"),  # 1 missing
+])
+def test_tile_part_indices(tmp_path, tileParts, expected):
+    data = codestream([tile_part(*fields) for fields in tileParts], **GRID_2X2)
+    assert structure_tests(tmp_path, data)["tilePartIndicesConsistencyCheck"] == expected
+
+
+@pytest.mark.parametrize("tileParts,expected", [
+    ([(0, 0, 2), (0, 1, 0), (1, 0, 1), (2, 0, 1), (3, 0, 1)], "True"),
+    ([(0, 0, 3), (0, 1, 2), (1, 0, 1), (2, 0, 1), (3, 0, 1)], "False"),
+])
+def test_tnsot_values_of_a_tile_agree(tmp_path, tileParts, expected):
+    data = codestream([tile_part(*fields) for fields in tileParts], **GRID_2X2)
+    assert structure_tests(tmp_path, data)["tnsotConsistencyCheck"] == expected
+
+
+def tile_part_with_psot_0(isot, data):
+    return (segment(b"\xff\x90", struct.pack(">HIBB", isot, 0, 0, 1)) + b"\xff\x93" +
+            data)
+
+
+@pytest.mark.parametrize("last,expected", [
+    (tile_part_with_psot_0(3, b"\x00\x01\xff\x7f\x02"), "True"),
+    # Another SOT after the tile-part with psot 0
+    (tile_part_with_psot_0(2, b"\x00\x01") + tile_part(3), "False"),
+])
+def test_psot_0_only_in_last_tile_part(tmp_path, last, expected):
+    others = [tile_part(t) for t in range(3 if expected == "True" else 2)]
+    tests = structure_tests(tmp_path, codestream(others + [last], **GRID_2X2))
+    assert tests["psotZeroOnlyInLastTilePart"] == expected
+    assert "foundEOCAfterLastTilePart" not in tests
+
+
+@pytest.mark.parametrize("trailer,expected", [
+    (b"", "True"),
+    (bytes(100) + b"\xff\xd9", "False"),          # data between EOC and the end
+    (b"\xff\x4f" + bytes(20) + b"\xff\xd9", "False"),  # a second codestream
+])
+def test_eoc_after_last_tile_part(tmp_path, trailer, expected):
+    data = codestream([tile_part(t) for t in range(4)], **GRID_2X2) + trailer
+    assert structure_tests(tmp_path, data)["foundEOCAfterLastTilePart"] == expected
