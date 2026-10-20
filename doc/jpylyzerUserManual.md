@@ -1875,6 +1875,8 @@ is given by the following 2 derived properties (these are always reported, irres
 |cqccValuesConsecutive|*cqcc* values are consecutive numbers (e.g. 0, 1, 2, etc.)|
 |tilePartsTLMConsistencyCheck|Number of tile parts indicated by TLM markers equals actual number of tile parts found (only reported if codestream contains any TLM marker segments)|
 |tilePartLengthsConsistencyCheck|Tile part lengths defined by ptlm values in TLM marker segments correspond to psot values in SOT marker segments (only reported if codestream contains any TLM marker segments)|
+|ztlmValuesUnique|Each TLM marker segment has a different *ztlm* index (only reported if codestream contains any TLM marker segments)|
+|tileIndicesTLMConsistencyCheck|Tile indices defined by TLM marker segments, taken in order of *ztlm*, equal the *isot* values in the SOT marker segments; for TLM marker segments with *st* = 0, tile part *i* belongs to tile *i* (only reported if codestream contains any TLM marker segments)|
 |foundEOCMarker|Last 2 bytes in codestream constitute an end of codestream (EOC) marker segment|
 
 Image and tile size (SIZ) marker segment (child of Contiguous Codestream box) {#siz-marker}
