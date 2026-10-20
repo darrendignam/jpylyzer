@@ -969,6 +969,7 @@ represented as child elements in the properties tree:
 
 |Test name|True if|
 |:--------|:------|
+|subBoxLengthsAreValid|The length (*LBox*, *XLBox*) of each box in this box is valid (not 0, 2-7 or an *XLBox* below 16) and the box does not extend beyond this box|
 |containsImageHeaderBox|Box contains required Image Header box|
 |containsColourSpecificationBox|Box contains required Colour Specification box|
 |containsBitsPerComponentBox|Box contains Bits Per Component Box, which is required if *bPCSign* and *bPCDepth* in Image Header Box equal 1 and 128, respectively (test is skipped otherwise)|
@@ -1239,6 +1240,7 @@ represented as child elements in the properties tree:
 
 |Test name|True if|
 |:--------|:------|
+|subBoxLengthsAreValid|The length (*LBox*, *XLBox*) of each box in this box is valid (not 0, 2-7 or an *XLBox* below 16) and the box does not extend beyond this box|
 |containsCaptureOrDisplayResolutionBox|Box contains either a Capture Resolution box or a Default Display Resolution box, or both|
 |noMoreThanOneCaptureResolutionBox|Box contains no more than one Capture Resolution box|
 |noMoreThanOneDisplayResolutionBox|Box contains no more than one Default Display Resolution box|
@@ -1437,6 +1439,7 @@ as child elements in the properties tree:
 
 |Test name|True if|
 |:--------|:------|
+|subBoxLengthsAreValid|The length (*LBox*, *XLBox*) of each box in this box is valid (not 0, 2-7 or an *XLBox* below 16) and the box does not extend beyond this box|
 |containsOneListBox|Box contains exactly one UUID List box|
 |containsOneURLBox|Box contains exactly one Data Entry URL box|
 
@@ -1626,6 +1629,7 @@ performs a number of tests to verify the consistency between these two.
 
 |Test name|True if|
 |:--------|:------|
+|boxLengthsAreValid|The length (*LBox*, *XLBox*) of each top-level box is valid (not 2-7, and an *XLBox* not below 16), each box ends within the file, and there are no trailing bytes too short to form a box|
 |containsSignatureBox|File root contains a JPEG 2000 Signature box|
 |containsFileTypeBox|File root contains a File Type box|
 |containsJP2HeaderBox|File root contains a JP2 Header box|
