@@ -10,6 +10,12 @@ from .tilepart import TilePartValidator
 from .csmarkers import CSMarkerValidator
 
 
+# Markers that ISO/IEC 15444-1 Table A.2 (and ISO/IEC 15444-15) do not
+# allow in the main header after SIZ: SOC, SIZ, PLT, PPT, SOD, EOC
+MARKERS_NOT_ALLOWED_IN_MAIN_HEADER = [b'\xff\x4f', b'\xff\x51', b'\xff\x58',
+                                      b'\xff\x61', b'\xff\x93', b'\xff\xd9']
+
+
 class CSValidator(Validator):
     """Validator class for JPEG 2000 codestream
     """
@@ -98,8 +104,12 @@ class CSValidator(Validator):
             foundCODMarker = False
             foundQCDMarker = False
 
+            # All markers in the main header (after SIZ)
+            mainHeaderMarkers = []
+
             while marker != b'\xff\x90' and offsetNext != -9999:
                 marker, _, segContents, offsetNext = self._getMarkerSegment(offset)
+                mainHeaderMarkers.append(marker)
 
                 if marker == b'\xff\x52':
                     # COD (coding style default) marker segment
@@ -345,6 +355,14 @@ class CSValidator(Validator):
             self.testFor("foundCODMarker", foundCODMarker)
             self.testFor("foundQCDMarker", foundQCDMarker)
 
+            # Only markers allowed in the main header, and no more than one COD,
+            # QCD and POC (ISO/IEC 15444-1 Table A.2, A.6.1, A.6.4, A.6.6)
+            self.testFor("mainHeaderMarkersAllowed",
+                         not set(mainHeaderMarkers) & set(MARKERS_NOT_ALLOWED_IN_MAIN_HEADER))
+            self.testFor("maxOneCODMain", mainHeaderMarkers.count(b'\xff\x52') <= 1)
+            self.testFor("maxOneQCDMain", mainHeaderMarkers.count(b'\xff\x5c') <= 1)
+            self.testFor("maxOnePOCMain", mainHeaderMarkers.count(b'\xff\x5f') <= 1)
+
             # Test for presence of CAP marker if rsiz indicates capabilities that
             # are defined there
             rsiz = self.characteristics.findElementText(
@@ -446,6 +464,12 @@ class CSValidator(Validator):
             self.tests.appendIfNotEmpty(tilePartTests)
             self.characteristics.append(tilePartCharacteristics)
             self.warnings.appendIfNotEmpty(tilePartWarnings)
+
+            # PPM and PPT marker segments shall not both be used (ISO/IEC 15444-1
+            # Sections A.7.4, A.7.5)
+            if ppmCount > 0:
+                pptCount = sum(tilePartCharacteristics.findAllText('tilePart/pptCount'))
+                self.testFor("noPPTMarkersWithPPM", pptCount == 0)
 
             # Test if all ccoc values at main header level are unique
             # (A.6.2 - no more than one COC per any given component)
