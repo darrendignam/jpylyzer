@@ -596,20 +596,33 @@ class CSValidator(Validator):
 
                 self.testFor("tilePartsTLMConsistencyCheck", tpCountTlm == tpCount)
 
+                # The information of all TLM marker segments is concatenated in
+                # order of their ztlm index, which must be unique (ISO/IEC 15444-1
+                # Section A.7.1)
+                tlmElements = sorted(self.characteristics.findall('tlm'),
+                                     key=lambda tlm: tlm.findElementText('ztlm'))
+                ztlms = [tlm.findElementText('ztlm') for tlm in tlmElements]
+                self.testFor("ztlmValuesUnique", len(set(ztlms)) == len(ztlms))
+
                 # Test if tile part lengths defined by ptlm values in TLM marker segments
                 # correspond to psot values in SOT marker segments
-                ptlmElements = self.characteristics.findall('tlm/ptlm')
-                psotElements = self.characteristics.findall('tileParts/tilePart/sot/psot')
-
-                # Lists of all ptlm and psot values
-                ptlms = []
-                for i in range(len(ptlmElements)):
-                    ptlms.append(ptlmElements[i].text)
-                psots = []
-                for i in range(len(psotElements)):
-                    psots.append(psotElements[i].text)
+                ptlms = [ptlm for tlm in tlmElements for ptlm in tlm.findAllText('ptlm')]
+                psots = self.characteristics.findAllText('tileParts/tilePart/sot/psot')
 
                 self.testFor("tilePartLengthsConsistencyCheck", ptlms == psots)
+
+                # Test if tile indices in TLM marker segments correspond to isot values
+                # in SOT marker segments. With st = 0 there are no ttlm values, and
+                # tile-part i belongs to tile i (one tile-part per tile)
+                ttlms = []
+                for tlm in tlmElements:
+                    if tlm.findElementText('st') == 0:
+                        ttlms += range(len(ttlms), len(ttlms) + tlm.findElementText('tpCount'))
+                    else:
+                        ttlms += tlm.findAllText('ttlm')
+                isots = self.characteristics.findAllText('tileParts/tilePart/sot/isot')
+
+                self.testFor("tileIndicesTLMConsistencyCheck", ttlms == isots)
 
             # Last 2 bytes must be end-of-codestream marker
             self.testFor("foundEOCMarker",

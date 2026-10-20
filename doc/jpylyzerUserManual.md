@@ -1886,6 +1886,8 @@ is given by the following 2 derived properties (these are always reported, irres
 |maxOneCqccPerComponentMain|No more than one *cqcc* value for each component in main header (only reported if codestream contains any QCC marker segments)|
 |tilePartsTLMConsistencyCheck|Number of tile parts indicated by TLM markers equals actual number of tile parts found (only reported if codestream contains any TLM marker segments)|
 |tilePartLengthsConsistencyCheck|Tile part lengths defined by ptlm values in TLM marker segments correspond to psot values in SOT marker segments (only reported if codestream contains any TLM marker segments)|
+|ztlmValuesUnique|Each TLM marker segment has a different *ztlm* index (only reported if codestream contains any TLM marker segments)|
+|tileIndicesTLMConsistencyCheck|Tile indices defined by TLM marker segments, taken in order of *ztlm*, equal the *isot* values in the SOT marker segments; for TLM marker segments with *st* = 0, tile part *i* belongs to tile *i* (only reported if codestream contains any TLM marker segments)|
 |foundEOCMarker|Last 2 bytes in codestream constitute an end of codestream (EOC) marker segment|
 |mainHeaderMarkersAllowed|Codestream main header does not contain markers that are not allowed there (SOC or SIZ after the first, PLT, PPT, SOD or EOC)|
 |maxOneCODMain|Codestream main header contains no more than one coding style default (COD) marker segment|
