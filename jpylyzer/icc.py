@@ -132,19 +132,24 @@ class IccValidator(Validator):
         primaryPlatform = self.boxContents[40:44]
         self.addCharacteristic("primaryPlatform", primaryPlatform)
 
-        # Profile flags (bytes 44-47; only first byte read here as remaining bytes
-        # don't contain any meaningful information)
-        profileFlags = bc.bytesToUnsignedChar(self.boxContents[44:45])
+        # Profile flags (bytes 44-47, ICC.1:2022 7.2.11). ICC numbers bits from the
+        # least significant bit; only bits 0 and 1 are defined
+        profileFlags = bc.bytesToUInt(self.boxContents[44:48])
 
         # Embedded profile (0 if not embedded, 1 if embedded in file)
-        embeddedProfile = bc.getBitValue(profileFlags, 1)
+        embeddedProfile = bc.getBitValueFromRight(profileFlags, 0)
         self.addCharacteristic("embeddedProfile", embeddedProfile)
 
         # Profile cannot be used independently from embedded colour data
         # (1 if true, 0 if false)
-        profileCannotBeUsedIndependently = bc.getBitValue(profileFlags, 2)
+        profileCannotBeUsedIndependently = bc.getBitValueFromRight(profileFlags, 1)
         self.addCharacteristic("profileCannotBeUsedIndependently",
                                profileCannotBeUsedIndependently)
+
+        # Bits 2-15 are reserved by the ICC (bits 16-31 are for CMM vendors)
+        if profileFlags != -9999 and profileFlags & 0xFFFC:
+            self.addWarning("ICC profile flags have reserved bits set (bits 2-15), "
+                            "so the defined flags may not be reliable either")
 
         # Device manufacturer
         deviceManufacturer = self.boxContents[48:52]
@@ -154,25 +159,30 @@ class IccValidator(Validator):
         deviceModel = self.boxContents[52:56]
         self.addCharacteristic("deviceModel", deviceModel)
 
-        # Device attributes (bytes 56-63; only first byte read here as remaining bytes
-        # don't contain any meaningful information)
-        deviceAttributes = bc.bytesToUnsignedChar(self.boxContents[56:57])
+        # Device attributes (bytes 56-63, ICC.1:2022 7.2.14). Bits 0-3 (counted
+        # from the least significant bit) are defined
+        deviceAttributes = bc.bytesToULongLong(self.boxContents[56:64])
 
         # Transparency (1 = transparent; 0 = reflective)
-        transparency = bc.getBitValue(deviceAttributes, 1)
+        transparency = bc.getBitValueFromRight(deviceAttributes, 0)
         self.addCharacteristic("transparency", transparency)
 
         # Glossiness (1 = matte; 0 = glossy)
-        glossiness = bc.getBitValue(deviceAttributes, 2)
+        glossiness = bc.getBitValueFromRight(deviceAttributes, 1)
         self.addCharacteristic("glossiness", glossiness)
 
         # Media polarity (1 = negative; 0 = positive)
-        polarity = bc.getBitValue(deviceAttributes, 3)
+        polarity = bc.getBitValueFromRight(deviceAttributes, 2)
         self.addCharacteristic("polarity", polarity)
 
         # Media colour (1 = black & white; 0 = colour)
-        colour = bc.getBitValue(deviceAttributes, 4)
+        colour = bc.getBitValueFromRight(deviceAttributes, 3)
         self.addCharacteristic("colour", colour)
+
+        # Bits 4-31 are reserved by the ICC (bits 32-63 are for vendors)
+        if deviceAttributes != -9999 and deviceAttributes & 0xFFFFFFF0:
+            self.addWarning("ICC device attributes have reserved bits set (bits 4-31), "
+                            "so the defined attributes may not be reliable either")
 
         # Rendering intent (bytes 64-67, only least-significant 2 bytes used)
         renderingIntent = bc.bytesToUShortInt(self.boxContents[66:68])
