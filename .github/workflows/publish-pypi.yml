@@ -1,10 +1,14 @@
 # Publishing is triggered by publishing the GitHub release, so the draft release
 # created by release.yml is the review step for what reaches PyPI.
 #
-# Requires a PyPI trusted publisher for this repository and workflow, plus a
-# "pypi" environment in the repository settings. Until both exist the job fails
-# without uploading anything. See:
+# Requires a PyPI trusted publisher for this repository and workflow. Until that
+# exists the job fails without uploading anything. See:
 # https://docs.pypi.org/trusted-publishers/adding-a-publisher/
+#
+# The "pypi" environment below is created automatically on first run, but an
+# auto-created environment carries no protection rules, so on its own it gates
+# nothing. Add required reviewers to it in the repository settings if an upload
+# to PyPI should wait for a human.
 name: Publish to PyPI
 
 on:
@@ -22,7 +26,9 @@ jobs:
   publish:
     name: Build and publish
     runs-on: ubuntu-24.04
-    environment: pypi
+    environment:
+      name: pypi
+      url: https://pypi.org/p/jpylyzer
     permissions:
       id-token: write
     steps:
