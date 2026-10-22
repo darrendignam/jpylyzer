@@ -1,4 +1,4 @@
-jpylyzer (2.3.0rc2) UNRELEASED; urgency=medium
+jpylyzer (0.0.0rc1) UNRELEASED; urgency=medium
 
   * Fixed calculation of compression ratio for codestreams
   * Validate codestream in-place using ByteRange class
