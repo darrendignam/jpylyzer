@@ -13,7 +13,7 @@ exe = EXE(pyz,
           name='jpylyzer.exe',
           debug=False,
           strip=None,
-          upx=True,
+          upx=False,
           console=True)
 
 coll = COLLECT(exe,
@@ -21,5 +21,5 @@ coll = COLLECT(exe,
                a.zipfiles,
                a.datas,
                strip=None,
-               upx=True,
+               upx=False,
                name='jpylyzer')
