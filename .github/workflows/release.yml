@@ -4,7 +4,8 @@ on:
   push:
     tags:
       - '[0-9]+.[0-9]+.[0-9]+*'
-  pull_request:
+  # Re-enable once the tag-driven run has been verified end to end
+  # pull_request:
   workflow_dispatch:
 
 permissions:
