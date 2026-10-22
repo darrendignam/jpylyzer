@@ -29,6 +29,10 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
+      # setup.py imports setuptools, which Python has not bundled since 3.12
+      - name: Install setuptools
+        run: python -m pip install --upgrade setuptools
+
       - name: Read version from package
         id: version
         run: |
@@ -93,6 +97,13 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      # package-debian-docker.sh reads the name and version via ./setup.py
+      - name: Install setuptools
+        run: python -m pip install --upgrade setuptools
 
       - name: Build Debian package
         run: ./package-debian-docker.sh "$DEBIAN_IMAGE"
@@ -136,8 +147,8 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
           architecture: ${{ matrix.architecture }}
 
-      - name: Install PyInstaller
-        run: python -m pip install --upgrade "pyinstaller==$env:PYINSTALLER_VERSION"
+      - name: Install build dependencies
+        run: python -m pip install --upgrade setuptools "pyinstaller==$env:PYINSTALLER_VERSION"
 
       # python and 7z are both on PATH on the GitHub-hosted Windows images
       - name: Build and package
