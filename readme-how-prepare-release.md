@@ -108,27 +108,23 @@ The [package-pypi.sh](.\package-pypi.sh) script expects a `.pypirc` file in your
     ```
     git push --tags
     ```
-1. Create and upload PyPi packages by running:
-    ```
-    ./package-pypi.sh
-    ```
-1. Build Windows binaries by running the following PowerShell script in the dedicated Windows (virtual) machine:
-    ```
-    .\package-win.ps1
-    ```
-1. Build Debian packages for Linux by running:
-    ```
-    ./package-debian-docker.sh debian:$release
-    ```
-    Here, replace `$release` with the name of the current stable Debian release. See the [Debian release list](https://www.debian.org/releases/).
- 
-1. Go to [*Releases*](https://github.com/openpreserve/jpylyzer/releases) and click on the *Draft a new release* button.
+1. Pushing the tag starts the [*Release* workflow](./.github/workflows/release.yml). It builds the Python
+   source distribution and wheel, the Debian package and the Windows binaries (64 bit, 32 bit and ARM64),
+   runs each Windows binary against the example files, and attaches everything to a **draft** release.
+   Follow the run under [*Actions*](https://github.com/openpreserve/jpylyzer/actions).
 
-1. Click the *Choose a tag* button, and select the latest tag.
+    The workflow fails before building anything if the tag does not match the version string in
+    `jpylyzer/jpylyzer.py`, so a mistyped tag cannot produce a mislabelled release.
+
+1. Go to [*Releases*](https://github.com/openpreserve/jpylyzer/releases) and open the draft release that
+   the workflow created.
 
 1. Enter a release title, and a release decription.
 
-1. Upload Linux/Windows packages to the release by dragging them to the *Attach Binaries* field at the bottom.
+1. Check that all packages are attached, then click *Publish release*.
+
+1. Publishing the release starts the [*Publish to PyPI* workflow](./.github/workflows/publish-pypi.yml),
+   which builds the Python packages again from the tag and uploads them to PyPI.
 
 1. Website: update *currentStableVersion* in *_config.yml* (this updates the links to all packages to the correct version).
 
@@ -146,3 +142,29 @@ The [package-pypi.sh](.\package-pypi.sh) script expects a `.pypirc` file in your
 1. Commit changes to website and push to branch *gh-pages*.
 
 1. Spread the word!
+
+## Building packages by hand
+
+The [*Release* workflow](./.github/workflows/release.yml) calls the same scripts that are described
+below. Use them directly only when the workflow is unavailable.
+
+Python source distribution and wheel, uploaded to PyPI (expects a `.pypirc` file, see above):
+
+```
+./package-pypi.sh
+```
+
+Debian package, where `$release` is the name of the current stable Debian release (see the
+[Debian release list](https://www.debian.org/releases/)):
+
+```
+./package-debian-docker.sh debian:$release
+```
+
+Windows binaries, one architecture per invocation, in the dedicated Windows (virtual) machine described
+in [readme-windows-vm-build-setup.md](./readme-windows-vm-build-setup.md):
+
+```
+.\package-win.ps1 -Suffix win64
+.\package-win.ps1 -Suffix win32 -Python C:\Python314-32\python.exe
+```

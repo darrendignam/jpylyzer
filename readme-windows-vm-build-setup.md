@@ -2,6 +2,10 @@
 
 This document describes how to set up a virtual machine for building Jpylyzer Windows binaries.
 
+The [*Release* workflow](./.github/workflows/release.yml) builds the Windows binaries on
+GitHub-hosted Windows runners, which need no Windows licence. Keep this VM as a fallback for
+when the workflow is unavailable, or to reproduce a build locally.
+
 ## Download Windows 11 IoT Enterprise LTSC ISO image
 
 Available from [Microsoft](https://www.microsoft.com/en-us/evalcenter/download-windows-11-iot-enterprise-ltsc-eval). Microsoft offers a 90 day fully functional evaluation period, after which the software must be purchased. 
