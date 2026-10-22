@@ -94,11 +94,15 @@ git pull
 
 ## Build binaries
 
-Run:
+PyInstaller builds for the architecture of the interpreter that runs it, so each architecture needs its
+own invocation:
 
 ```
-.\package-pypi.sh
+.\package-win.ps1 -Suffix win64
+.\package-win.ps1 -Suffix win32 -Python C:\Python314-32\python.exe
 ```
+
+The script refuses to run if the interpreter does not match the requested suffix.
 
 This creates two ZIP files under `./dist`. Copy these to the shared folder to make them available from the host machine.
 
