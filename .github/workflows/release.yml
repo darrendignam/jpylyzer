@@ -41,6 +41,17 @@ jobs:
           fi
           echo "Package version: $version"
 
+      # The Debian build names the .deb after __version__ but dpkg builds it from
+      # debian/changelog, so a disagreement only surfaces as a failed copy at the
+      # end of a long build
+      - name: Check Debian changelog matches package version
+        run: |
+          changelog_version="$(sed -n '1s/.*(\(.*\)).*/\1/p' debian/changelog)"
+          if [[ "$changelog_version" != "${{ steps.version.outputs.version }}" ]]; then
+            echo "debian/changelog version $changelog_version does not match package version ${{ steps.version.outputs.version }}" >&2
+            exit 1
+          fi
+
       # A tag that disagrees with __version__ would produce a release whose
       # assets are all named after the other version
       - name: Check tag matches package version
