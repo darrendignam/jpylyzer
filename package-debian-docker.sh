@@ -22,7 +22,6 @@ function getDebianVersionString {
     # in debug string
     re='^[0-9]+$'
     for i in $(seq 1 ${#vDebug}); do
-        echo $i
         char="${vDebug:i-1:1}"
         if [[ $char =~ $re ]] ; then
             splitpos=$i
